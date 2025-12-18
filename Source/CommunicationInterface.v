@@ -1,4 +1,4 @@
-//顏色編碼：0=透明, 1=紅, 2=深紅, 3=黃, 4=黑, 5=灰
+//顏色編碼：0=透明, 1=紅, 2=深紅, 3=黃, 4=黑, 5=灰, 6=綠, 7=土黃, 8=白
 module color_decoder (
     input wire [2:0] color_index,  // 從 BRAM 讀出來的 0~5
     output reg [11:0] rgb_data     // 轉還原給 VGA 的 12-bit RGB (RRRRGGGGBBBB)
@@ -19,6 +19,9 @@ module color_decoder (
             3'd3: rgb_data = 12'hFF9; // 黃 (Centroid: 15,15,9)
             3'd4: rgb_data = 12'h210; // 黑/深雜訊 (Centroid: 2,1,0)
             3'd5: rgb_data = 12'h778; // 灰 (Centroid: 7,7,8)
+            3'd6: rgb_data = 12'h6B4; // 綠
+            3'd7: rgb_data = 12'hDD0; //土黃
+            3'd8: rgb_data = 12'hFFF; // 白
             default: rgb_data = 12'hF0F; // 錯誤處理 (紫色)，若出現預期外的數值方便除錯
         endcase
     end
