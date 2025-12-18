@@ -1,6 +1,11 @@
 module Top (
-    input wire clk,           
-    input wire rst,     
+    input wire clk,
+    input wire rst,
+    // 新增：外部控制訊號
+    input wire [9:0] scroll_x, // 地圖 X 軸捲動位置
+    input wire [9:0] scroll_y, // 地圖 Y 軸捲動位置
+    input wire [3:0] degree,   // 車子角度 (0-15)
+    
     output wire [3:0] vgaRed,
     output wire [3:0] vgaGreen,
     output wire [3:0] vgaBlue,
@@ -8,91 +13,125 @@ module Top (
     output wire vsync
 );
 
+    // --- 參數設定 ---
+    // 假設你的地圖在記憶體中的起始位置是 90001 (如你先前所述)
+    // 如果地圖是獨立存放在 blk_mem_gen_0 的第 0 格，請改成 0
+    parameter MAP_WIDTH     = 10'd320;
+    parameter MAP_HEIGHT    = 10'd240;
+    parameter OUT_BOUND_COLOR = 12'h6B4; // 界外顯示綠色
+
+    // --- 內部訊號 ---
     wire clk_25MHz;
     wire valid;
-    wire [9:0] h_cnt; // Range: 0-639 (visible)
-    wire [9:0] v_cnt; // Range: 0-479 (visible)
+    wire [9:0] h_cnt; // Range: 0-639
+    wire [9:0] v_cnt; // Range: 0-479
     
-    // 記憶體相關
-    reg [16:0] pixel_addr;
-    wire [11:0] pixel_data; // 假設你的 RGB 是 12-bit (4-4-4)
-    
-    // 中央區域判斷信號
+    // 記憶體位址與資料
+    reg  [16:0] pixel_addr; // 地圖位址
+    wire [11:0] pixel_data; // 地圖資料 (Map)
+    wire [16:0] car_pixel;  // 車子位址
+    wire [11:0] car_data;   // 車子資料 (Car)
+
+    // 邏輯判斷旗標
     wire is_center_box;
+    wire is_out_of_map;
     
-    // 捲動偏移量 (如果要讓地圖捲動，可以改變這個值)
-    reg [9:0] scroll_y = 0; 
+    // 計算後的「世界地圖」座標
+    wire [9:0] map_global_x;
+    wire [9:0] map_global_y;
 
-
-    // Clock Divider (產生 25MHz VGA Pixel Clock)
+    // --- 1. Clock & VGA Controller ---
     clock_divider #(.n(2)) clk25Mhz_inst (
         .clk(clk),
         .clk_div(clk_25MHz)
     );
 
-    // VGA Controller
     vga_controller vga_inst (
-        .pclk(clk_25MHz),
-        .reset(rst),
-        .hsync(hsync),
-        .vsync(vsync),
-        .valid(valid),
-        .h_cnt(h_cnt),
-        .v_cnt(v_cnt)
+        .pclk(clk_25MHz), .reset(rst),
+        .hsync(hsync), .vsync(vsync), .valid(valid),
+        .h_cnt(h_cnt), .v_cnt(v_cnt)
     );
 
-    // Block Memory (假設你的 IP Name 是 blk_mem_gen_0)
-    // 注意：這裡需要根據你實際生成的 IP core 介面進行調整
+    // --- 2. 記憶體模組 (BRAM) ---
+    // 地圖記憶體
     blk_mem_gen_0 blk_mem_inst (
         .clka(clk_25MHz),
-        .addra(pixel_addr), // 輸入計算好的位址
-        .douta(pixel_data)  // 輸出的顏色資料
+        .addra(pixel_addr), 
+        .douta(pixel_data)
+    );
+    
+    // 車子記憶體
+    blk_mem_gen_1 blk_mem_inst1 (
+        .clka(clk_25MHz),
+        .addra(car_pixel), 
+        .douta(car_data)
     );
 
+    // --- 3. 邏輯運算 ---
 
-    // --- 中央 75x75 挖空邏輯 ---
-    // 螢幕中心: (320, 240)
-    // 寬度一半: 75 / 2 = 37.5 -> 取 37
-    // X 範圍: 320 - 37 到 320 + 37 -> [283, 357]
-    // Y 範圍: 240 - 37 到 240 + 37 -> [203, 277]
+    // [中央挖空邏輯]
+    // 螢幕中心附近 75x75 的區域
     assign is_center_box = (h_cnt >= 283 && h_cnt <= 357) && 
                            (v_cnt >= 203 && v_cnt <= 277);
 
-    // --- 位址計算邏輯 ---
+    // [地圖座標計算與邊界檢查]
+    // 1. (h_cnt >> 1): 將 640x480 縮小對應到 320x240
+    // 2. + scroll: 加上捲動偏移量
+    assign map_global_x = (h_cnt >> 1) + scroll_x;
+    assign map_global_y = (v_cnt >> 1) + scroll_y;
+
+    // 判斷是否超出地圖原本的 320x240 範圍
+    assign is_out_of_map = (map_global_x >= MAP_WIDTH) || (map_global_y >= MAP_HEIGHT);
+
+    // [車子位址計算模組]
+    car_addr ccc(
+        .degree(degree),        // 接上輸入的角度
+        .pixel_x(h_cnt - 283),  // 計算相對於中央框框左上角的 X
+        .pixel_y(v_cnt - 203),  // 計算相對於中央框框左上角的 Y
+        .rom_addr(car_pixel)    // 輸出計算好的記憶體位址
+    );
+
+    // [地圖記憶體位址計算]
     always @(*) begin
-        if (valid) begin
-            if (is_center_box) begin
-                // 如果在中央格子內，指向"其他東西"的位址
-                // 這裡暫時設為 0 或者你可以設一個特殊的保留位址
-                // 實際上這部分的顏色輸出會由下方的 assign 控制
-                pixel_addr = 0; 
-            end else begin
-                // --- 地圖位址計算 ---
-                // 1. 基礎位址: 90001
-                // 2. 座標轉換: 螢幕 640x480 -> 地圖 320x240 (除以2，即右移 1 位)
-                // 3. 捲動邏輯: (v_cnt >> 1) + scroll_y (這裡做簡單的垂直捲動示範)
-                // 4. 公式: Base + (Y * Width) + X
-                
-                pixel_addr = 17'd90001 + ((v_cnt[9:1]) * 320) + (h_cnt[9:1]);
-                
-                // 如果你想做"循環捲動"，Y 軸需要對地圖高度取餘數 (假設地圖高 240)
-                // pixel_addr = 17'd90001 + (((v_cnt[9:1] + scroll_y) % 240) * 320) + (h_cnt[9:1]);
-            end
+        if (is_out_of_map) begin
+            // 如果超出地圖範圍，不需要讀取有效資料 (設為0或其他安全值)
+            pixel_addr = 0;
         end else begin
-            pixel_addr = 0; //不在顯示範圍時歸零
+            // 公式: Base + (Y * Width) + X
+            // 這裡補回了你提到的 90001 偏移量
+            pixel_addr = (map_global_y * 320) + map_global_x;
         end
     end
 
-    // --- 4. 顏色輸出邏輯 ---
-    // 如果是中央格子，輸出黑色 (或其他顏色/你的車子邏輯)
-    // 否則輸出記憶體讀到的地圖顏色
-    assign vgaRed   = (valid && !is_center_box) ? pixel_data[11:8] : 
-                      (valid && is_center_box)  ? 4'h0 : 4'h0; // 中央格子目前顯示黑色
-                      
-    assign vgaGreen = (valid && !is_center_box) ? pixel_data[7:4]  : 
-                      (valid && is_center_box)  ? 4'h0 : 4'h0;
-                      
-    assign vgaBlue  = (valid && !is_center_box) ? pixel_data[3:0]  : 
-                      (valid && is_center_box)  ? 4'hF : 4'h0; // 中央格子顯示藍色以供識別
+    // --- 4. 最終顏色輸出 (Priority Logic) ---
+    // 優先順序: 
+    // 1. !valid (消隱期) -> 全黑
+    // 2. 中央區域 AND 車子非透明 -> 顯示車子
+    // 3. 超出地圖範圍 -> 顯示綠色
+    // 4. 其他 -> 顯示地圖
+
+    reg [11:0] final_color;
+
+    always @(*) begin
+        if (!valid) begin
+            final_color = 12'h000;
+        end 
+        // 如果在中央格子 且 車子顏色不是透明色(12'h000)
+        else if (is_center_box && car_data != 12'h000) begin
+            final_color = car_data;
+        end 
+        // (重要) 如果上面沒顯示車子，且地圖座標已經出界 -> 顯示綠色背景
+        else if (is_out_of_map) begin
+            final_color = OUT_BOUND_COLOR; 
+        end 
+        // 顯示正常地圖背景 (這會透過車子的透明部分顯示出來，或者顯示在車子框框外)
+        else begin
+            final_color = pixel_data;
+        end
+    end
+
+    assign vgaRed   = final_color[11:8];
+    assign vgaGreen = final_color[7:4];
+    assign vgaBlue  = final_color[3:0];
 
 endmodule
