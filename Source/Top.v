@@ -1,10 +1,9 @@
 module Top (
     input wire clk,
     input wire rst,
-    // 新增：外部控制訊號
+
     input wire [9:0] scroll_x, // 地圖 X 軸捲動位置
     input wire [9:0] scroll_y, // 地圖 Y 軸捲動位置
-    input wire [3:0] degree,   // 車子角度 (0-15)
     
     output wire [3:0] vgaRed,
     output wire [3:0] vgaGreen,
@@ -25,6 +24,7 @@ module Top (
     wire valid;
     wire [9:0] h_cnt; // Range: 0-639
     wire [9:0] v_cnt; // Range: 0-479
+    wire [3:0] degree,   // 車子角度 (0-15)
     
     // 記憶體位址與資料
     reg  [16:0] pixel_addr; // 地圖位址
@@ -51,7 +51,18 @@ module Top (
         .hsync(hsync), .vsync(vsync), .valid(valid),
         .h_cnt(h_cnt), .v_cnt(v_cnt)
     );
-
+    PhysicsEngin physic(
+        //待完成
+        .clk(clk),
+        .rst(rst),
+        .state(), // From StateEncoder
+        .operation_code, // From OperationEncoder Module
+        .boost(),          // From OperationEncoder Module
+        .pos_x(),
+        .pos_y(),
+        .angle_index(degree),
+    );
+    
     // --- 2. 記憶體模組 (BRAM) ---
     // 地圖記憶體
     blk_mem_gen_0 blk_mem_inst (
@@ -98,7 +109,6 @@ module Top (
             pixel_addr = 0;
         end else begin
             // 公式: Base + (Y * Width) + X
-            // 這裡補回了你提到的 90001 偏移量
             pixel_addr = (map_global_y * 320) + map_global_x;
         end
     end
