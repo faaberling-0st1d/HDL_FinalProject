@@ -37,6 +37,8 @@ module Top (
         .hsync(hsync), .vsync(vsync), .valid(valid),
         .h_cnt(h_cnt), .v_cnt(v_cnt)
     );
+    
+    //測試用 可刪
     wire rst_db,rst_op;
     debounce db1(.pb_debounced(rst_db),   .pb(btn_up),   .clk(clk));
     onepulse op1(.signal(rst_db),   .clk(clk), .op(rst_op));
@@ -92,8 +94,8 @@ module Top (
     wire [11:0] data_map;
     
     // 地圖的世界座標
-    wire [9:0] map_global_x = (screen_rel_x >> 1) + (my_world_x - 80); // 假設中心在160，地圖縮放2倍
-    wire [9:0] map_global_y = (v_cnt >> 1) + (my_world_y - 60);        // 假設中心在240(120*2)
+    wire [9:0] map_global_x = (screen_rel_x >> 2) + (my_world_x - 40); // 假設中心在160，地圖縮放2倍
+    wire [9:0] map_global_y = (v_cnt >> 2) + (my_world_y - 60);        // 假設中心在240(120*2)
     wire is_out_of_map = (map_global_x >= MAP_WIDTH) || (map_global_y >= MAP_HEIGHT);
 
     always @(*) begin
@@ -128,10 +130,10 @@ module Top (
 
     // 2. [敵人的車] (相對座標)
     // 距離 = (Enemy - Me) * 2 (地圖放大倍率)
-    wire signed [10:0] diff_x = (enemy_world_x - my_world_x) * 2;
-    wire signed [10:0] diff_y = (enemy_world_y - my_world_y) * 2;
-    wire signed [10:0] enemy_center_x = 160 + diff_x;
-    wire signed [10:0] enemy_center_y = 240 + diff_y;
+    wire signed [12:0] diff_x = (enemy_world_x - my_world_x) <<< 2;
+    wire signed [12:0] diff_y = (enemy_world_y - my_world_y) <<< 2;
+    wire signed [12:0] enemy_center_x = 160 + diff_x;
+    wire signed [12:0] enemy_center_y = 240 + diff_y;
     
     // 敵車判定框 (Box Check)
     wire is_enemy_box = (screen_rel_x >= (enemy_center_x - 37)) && (screen_rel_x <= (enemy_center_x + 37)) &&
