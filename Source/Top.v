@@ -2,10 +2,6 @@ module Top (
     input wire clk,
     input wire rst,
     
-    // 硬體按鍵輸入 {Up, Down, Left, Right}
-    input wire [3:0] p1_btn,
-    input wire [3:0] p2_btn,
-
     // VGA 輸出
     output wire [3:0] vgaRed,
     output wire [3:0] vgaGreen,
@@ -13,13 +9,12 @@ module Top (
     output wire hsync,
     output wire vsync
 );
-
     // --- 參數設定 ---
     parameter MAP_BASE_ADDR   = 17'd90001; // 地圖起始位址
     parameter MAP_WIDTH       = 10'd320;
     parameter MAP_HEIGHT      = 10'd240;
-    parameter TRANSPARENT     = 12'h6B4;   // 車子透明色 (綠)
-    parameter OUT_BOUND_COLOR = 12'h0F0;   // 地圖界外色 (綠)
+    parameter TRANSPARENT     = 12'h000;   // 車子透明色 (綠)
+    parameter OUT_BOUND_COLOR = 12'h6B4;   // 地圖界外色 (綠)
     parameter SEPARATOR_COLOR = 12'hFFF;   // 分割線 (白)
 
     // --- 內部連接線 ---
@@ -97,11 +92,13 @@ module Top (
 
     always @(*) begin
         if (is_out_of_map) addr_map = 0;
-        else addr_map = MAP_BASE_ADDR + (map_global_y * 320) + map_global_x;
+        else addr_map = (map_global_y * 320) + map_global_x;
     end
 
-    blk_mem_gen_0 map_ram (.clka(clk_25MHz), .addra(addr_map), .douta(data_map));
-
+    wire [3:0] map_color;
+    blk_mem_gen_0 map_ram (.clka(clk_25MHz), .addra(addr_map), .douta(map_color));
+    color_decoder map_color_decoder(.color_index(map_color),  // 從 BRAM 讀出來的 0~5
+    ,.rgb_data(data_map));
 
     // B. 車子位址計算 (Car Address) - True Dual Port
     reg [16:0] addr_car_self;
@@ -150,11 +147,14 @@ module Top (
     end
 
     // 雙埠記憶體實例化
+    wire [3:0]car_self_color,[3:0]car_enemy_color;
     blk_mem_gen_1 car_ram (
-        .clka(clk_25MHz), .addra(addr_car_self), .douta(data_car_self),   // Port A: Self
-        .clkb(clk_25MHz), .addrb(addr_car_enemy), .doutb(data_car_enemy)  // Port B: Enemy
+        .clka(clk_25MHz), .addra(addr_car_self), .douta(car_self_color),   // Port A: Self
+        .clkb(clk_25MHz), .addrb(addr_car_enemy), .doutb(car_enemy_color)  // Port B: Enemy
     );
-
+    color_decoder car_a_decode(.color_index(car_self_color),.rgb_data(data_car_self));
+    color_decoder car_b_decode(.color_index(car_enemy_color),.rgb_data(data_car_enemy));
+    
     // --- 4. 最終顏色輸出 (Priority Mux) ---
     reg [11:0] final_color;
     
