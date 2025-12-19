@@ -23,7 +23,7 @@ module Top (
 
     // 從 Engine 來的資訊
     reg [9:0] p1_world_x, p1_world_y;
-    wire [9:0] p2_world_x, p2_world_y;
+    reg [9:0] p2_world_x, p2_world_y;
     reg [8:0] p1_degree,  p2_degree;
 
     // --- 模組實例化 ---
@@ -43,7 +43,7 @@ module Top (
     debounce db1(.pb_debounced(rst_db),   .pb(btn_up),   .clk(clk));
     onepulse op1(.signal(rst_db),   .clk(clk), .op(rst_op));
     always@(posedge rst_op or posedge rst)begin
-        if(rst)begin p1_degree<=0;p1_world_x<=0;p1_world_y<=0; end
+        if(rst)begin p1_degree<=0;p1_world_x<=0;p1_world_y<=0;p2_world_x<=0;p2_world_y<=0; end
         else begin p1_degree<=p1_degree+10;p1_world_x<=40;p1_world_y<=40;end
     end
     // 3. 遊戲物理引擎 (處理移動、碰撞)
