@@ -2,6 +2,10 @@ module Top (
     input wire clk,
     input wire rst,
     input btn_up,
+    input up,
+    input right,
+    input left,
+    input down,
     // VGA 輸出
     output wire [3:0] vgaRed,
     output wire [3:0] vgaGreen,
@@ -30,7 +34,6 @@ module Top (
     
     // 1. 時脈除頻
     clock_divider #(.n(2)) clk25(.clk(clk), .clk_div(clk_25MHz));
-
     // 2. VGA 控制器
     vga_controller vga_inst(
         .pclk(clk_25MHz), .reset(rst),
@@ -40,11 +43,20 @@ module Top (
     
     //測試用 可刪
     wire rst_db,rst_op;
+    wire test;
+    clock_divider #(.n(20)) testclk(.clk(clk), .clk_div(test));
     debounce db1(.pb_debounced(rst_db),   .pb(btn_up),   .clk(clk));
     onepulse op1(.signal(rst_db),   .clk(clk), .op(rst_op));
-    always@(posedge rst_op or posedge rst)begin
-        if(rst)begin p1_degree<=0;p1_world_x<=0;p1_world_y<=0;p2_world_x<=0;p2_world_y<=0; end
-        else begin p1_degree<=p1_degree+10;p1_world_x<=40;p1_world_y<=40;end
+    always@(posedge test)begin
+        if(rst)begin p1_degree<=0;p1_world_x<=40;p1_world_y<=40;p2_world_x<=80;p2_world_y<=80;p2_degree<=0; end
+        else begin 
+            if(up)begin
+                p1_world_y=p1_world_y+1;
+            end
+            else if(down)p1_world_y=p1_world_y-1;
+            else if(right)p1_world_x=p1_world_x+1;
+            else if(left)p1_world_x=p1_world_x-1;   
+        end
     end
     // 3. 遊戲物理引擎 (處理移動、碰撞)
    /* PhysicsEngine engine (
@@ -136,15 +148,27 @@ module Top (
     wire signed [12:0] enemy_center_y = 240 + diff_y;
     
     // 敵車判定框 (Box Check)
-    wire is_enemy_box = (screen_rel_x >= (enemy_center_x - 37)) && (screen_rel_x <= (enemy_center_x + 37)) &&
-                        (v_cnt >= (enemy_center_y - 37)) && (v_cnt <= (enemy_center_y + 37));
-
+    wire signed [12:0] screen_x_signed = $signed({1'b0, screen_rel_x}); // 轉成 13-bit signed
+    wire signed [12:0] screen_y_signed = $signed({1'b0, v_cnt});        // 轉成 13-bit signed
+    wire signed [12:0] car_left   = enemy_center_x - 13'd37;
+    wire signed [12:0] car_right  = enemy_center_x + 13'd37;
+    wire signed [12:0] car_top    = enemy_center_y - 13'd37;
+    wire signed [12:0] car_bottom = enemy_center_y + 13'd37;
+    // 敵車判定框 (使用 Signed 比較)
+   wire is_enemy_box = (screen_x_signed >= car_left) && (screen_x_signed <= car_right) &&
+                        (screen_y_signed >= car_top)  && (screen_y_signed <= car_bottom);
     // 計算 Enemy 旋轉位址
+   wire signed [12:0] tex_x_calc = screen_x_signed - car_left;
+    wire signed [12:0] tex_y_calc = screen_y_signed - car_top;
+
+    // 5. 連接到 Address Generator
     wire [16:0] calc_addr_enemy;
+    
     car_addr addr_logic_enemy (
         .degree(enemy_degree),
-        .pixel_x(screen_rel_x - (enemy_center_x - 10'd37)), // 使用 wire 運算後的座標
-        .pixel_y(v_cnt - (enemy_center_y - 10'd37)),
+        // 只取低位元傳入，因為 car_addr 只需要 0~74 的輸入
+        .pixel_x(tex_x_calc[9:0]), 
+        .pixel_y(tex_y_calc[9:0]),
         .rom_addr(calc_addr_enemy)
     );
 
