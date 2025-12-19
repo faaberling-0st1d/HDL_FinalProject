@@ -18,7 +18,7 @@ module Top (
     parameter MAP_BASE_ADDR   = 17'd90001; // 地圖起始位址
     parameter MAP_WIDTH       = 10'd320;
     parameter MAP_HEIGHT      = 10'd240;
-    parameter TRANSPARENT     = 12'h0F0;   // 車子透明色 (綠)
+    parameter TRANSPARENT     = 12'h6B4;   // 車子透明色 (綠)
     parameter OUT_BOUND_COLOR = 12'h0F0;   // 地圖界外色 (綠)
     parameter SEPARATOR_COLOR = 12'hFFF;   // 分割線 (白)
 
