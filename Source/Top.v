@@ -1,7 +1,7 @@
 module Top (
     input wire clk,
     input wire rst,
-    
+    input btn_up,
     // VGA 輸出
     output wire [3:0] vgaRed,
     output wire [3:0] vgaGreen,
@@ -24,7 +24,7 @@ module Top (
     // 從 Engine 來的資訊
     wire [9:0] p1_world_x, p1_world_y;
     wire [9:0] p2_world_x, p2_world_y;
-    wire [3:0] p1_degree,  p2_degree;
+    reg [8:0] p1_degree,  p2_degree;
 
     // --- 模組實例化 ---
     
@@ -37,7 +37,13 @@ module Top (
         .hsync(hsync), .vsync(vsync), .valid(valid),
         .h_cnt(h_cnt), .v_cnt(v_cnt)
     );
-
+    wire rst_db,rst_op;
+    debounce db1(.pb_debounced(rst_db),   .pb(btn_up),   .clk(clk));
+    onepulse op1(.signal(rst_db),   .clk(clk), .op(rst_op));
+    always@(posedge rst_op or posedge rst)begin
+        if(rst)p1_degree<=0;
+        else p1_degree<=p1_degree+10;
+    end
     // 3. 遊戲物理引擎 (處理移動、碰撞)
    /* PhysicsEngine engine (
         .clk(clk), .rst(rst),
@@ -53,7 +59,7 @@ module Top (
     // 動態變數 (根據目前掃描左右邊切換)
     reg [9:0] my_world_x, my_world_y;       // 當前畫面主角
     reg [9:0] enemy_world_x, enemy_world_y; // 當前畫面敵人
-    reg [3:0] my_degree, enemy_degree;
+    reg [8:0] my_degree, enemy_degree;
     reg [9:0] screen_rel_x;                 // 相對螢幕 X (0~319)
 
     // 切換視角邏輯 (Multiplexer)
@@ -98,7 +104,7 @@ module Top (
     wire [3:0] map_color;
     blk_mem_gen_0 map_ram (.clka(clk_25MHz), .addra(addr_map), .douta(map_color));
     color_decoder map_color_decoder(.color_index(map_color),  // 從 BRAM 讀出來的 0~5
-    .rgb_data(data_map));
+    .rgb_data(data_map),.is_b(0));
 
     // B. 車子位址計算 (Car Address) - True Dual Port
     reg [16:0] addr_car_self;
@@ -153,8 +159,8 @@ module Top (
         .clka(clk_25MHz), .addra(addr_car_self), .douta(car_self_color),   // Port A: Self
         .clkb(clk_25MHz), .addrb(addr_car_enemy), .doutb(car_enemy_color)  // Port B: Enemy
     );
-    color_decoder car_a_decode(.color_index(car_self_color),.rgb_data(data_car_self));
-    color_decoder car_b_decode(.color_index(car_enemy_color),.rgb_data(data_car_enemy));
+    color_decoder car_a_decode(.color_index(car_self_color),.rgb_data(data_car_self),.is_b(!is_left_screen));
+    color_decoder car_b_decode(.color_index(car_enemy_color),.rgb_data(data_car_enemy),.is_b(is_left_screen));
     
     // --- 4. 最終顏色輸出 (Priority Mux) ---
     reg [11:0] final_color;
