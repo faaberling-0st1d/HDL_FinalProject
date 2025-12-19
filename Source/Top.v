@@ -1,10 +1,12 @@
 module Top (
     input wire clk,
     input wire rst,
-
-    input wire [9:0] scroll_x, // 地圖 X 軸捲動位置
-    input wire [9:0] scroll_y, // 地圖 Y 軸捲動位置
     
+    // 硬體按鍵輸入 {Up, Down, Left, Right}
+    input wire [3:0] p1_btn,
+    input wire [3:0] p2_btn,
+
+    // VGA 輸出
     output wire [3:0] vgaRed,
     output wire [3:0] vgaGreen,
     output wire [3:0] vgaBlue,
@@ -13,130 +15,168 @@ module Top (
 );
 
     // --- 參數設定 ---
-    // 假設你的地圖在記憶體中的起始位置是 90001 (如你先前所述)
-    // 如果地圖是獨立存放在 blk_mem_gen_0 的第 0 格，請改成 0
-    parameter MAP_WIDTH     = 10'd320;
-    parameter MAP_HEIGHT    = 10'd240;
-    parameter OUT_BOUND_COLOR = 12'h6B4; // 界外顯示綠色
+    parameter MAP_BASE_ADDR   = 17'd90001; // 地圖起始位址
+    parameter MAP_WIDTH       = 10'd320;
+    parameter MAP_HEIGHT      = 10'd240;
+    parameter TRANSPARENT     = 12'h0F0;   // 車子透明色 (綠)
+    parameter OUT_BOUND_COLOR = 12'h0F0;   // 地圖界外色 (綠)
+    parameter SEPARATOR_COLOR = 12'hFFF;   // 分割線 (白)
 
-    // --- 內部訊號 ---
-    wire clk_25MHz;
-    wire valid;
-    wire [9:0] h_cnt; // Range: 0-639
-    wire [9:0] v_cnt; // Range: 0-479
-    wire [3:0] degree,   // 車子角度 (0-15)
+    // --- 內部連接線 ---
+    wire clk_25MHz, valid;
+    wire [9:0] h_cnt, v_cnt;
+
+    // 從 Engine 來的資訊
+    wire [9:0] p1_world_x, p1_world_y;
+    wire [9:0] p2_world_x, p2_world_y;
+    wire [3:0] p1_degree,  p2_degree;
+
+    // --- 模組實例化 ---
     
-    // 記憶體位址與資料
-    reg  [16:0] pixel_addr; // 地圖位址
-    wire [11:0] pixel_data; // 地圖資料 (Map)
-    wire [16:0] car_pixel;  // 車子位址
-    wire [11:0] car_data;   // 車子資料 (Car)
+    // 1. 時脈除頻
+    clock_divider #(.n(2)) clk25(.clk(clk), .clk_div(clk_25MHz));
 
-    // 邏輯判斷旗標
-    wire is_center_box;
-    wire is_out_of_map;
-    
-    // 計算後的「世界地圖」座標
-    wire [9:0] map_global_x;
-    wire [9:0] map_global_y;
-
-    // --- 1. Clock & VGA Controller ---
-    clock_divider #(.n(2)) clk25Mhz_inst (
-        .clk(clk),
-        .clk_div(clk_25MHz)
-    );
-
-    vga_controller vga_inst (
+    // 2. VGA 控制器
+    vga_controller vga_inst(
         .pclk(clk_25MHz), .reset(rst),
         .hsync(hsync), .vsync(vsync), .valid(valid),
         .h_cnt(h_cnt), .v_cnt(v_cnt)
     );
-    PhysicsEngin physic(
+
+    // 3. 遊戲物理引擎 (處理移動、碰撞)
+    PhysicsEngine engine (
+        .clk(clk), .rst(rst),
         //待完成
-        .clk(clk),
-        .rst(rst),
-        .state(), // From StateEncoder
-        .operation_code, // From OperationEncoder Module
-        .boost(),          // From OperationEncoder Module
-        .pos_x(),
-        .pos_y(),
-        .angle_index(degree),
     );
+
+    // --- 渲染變數 (Rendering Logic) ---
     
-    // --- 2. 記憶體模組 (BRAM) ---
-    // 地圖記憶體
-    blk_mem_gen_0 blk_mem_inst (
-        .clka(clk_25MHz),
-        .addra(pixel_addr), 
-        .douta(pixel_data)
-    );
-    
-    // 車子記憶體
-    blk_mem_gen_1 blk_mem_inst1 (
-        .clka(clk_25MHz),
-        .addra(car_pixel), 
-        .douta(car_data)
-    );
+    // 狀態判斷
+    wire is_left_screen = (h_cnt < 320);
+    wire is_separator   = (h_cnt == 319 || h_cnt == 320);
 
-    // --- 3. 邏輯運算 ---
+    // 動態變數 (根據目前掃描左右邊切換)
+    reg [9:0] my_world_x, my_world_y;       // 當前畫面主角
+    reg [9:0] enemy_world_x, enemy_world_y; // 當前畫面敵人
+    reg [3:0] my_degree, enemy_degree;
+    reg [9:0] screen_rel_x;                 // 相對螢幕 X (0~319)
 
-    // [中央挖空邏輯]
-    // 螢幕中心附近 75x75 的區域
-    assign is_center_box = (h_cnt >= 283 && h_cnt <= 357) && 
-                           (v_cnt >= 203 && v_cnt <= 277);
-
-    // [地圖座標計算與邊界檢查]
-    // 1. (h_cnt >> 1): 將 640x480 縮小對應到 320x240
-    // 2. + scroll: 加上捲動偏移量
-    assign map_global_x = (h_cnt >> 1) + scroll_x;
-    assign map_global_y = (v_cnt >> 1) + scroll_y;
-
-    // 判斷是否超出地圖原本的 320x240 範圍
-    assign is_out_of_map = (map_global_x >= MAP_WIDTH) || (map_global_y >= MAP_HEIGHT);
-
-    // [車子位址計算模組]
-    car_addr ccc(
-        .degree(degree),        // 接上輸入的角度
-        .pixel_x(h_cnt - 283),  // 計算相對於中央框框左上角的 X
-        .pixel_y(v_cnt - 203),  // 計算相對於中央框框左上角的 Y
-        .rom_addr(car_pixel)    // 輸出計算好的記憶體位址
-    );
-
-    // [地圖記憶體位址計算]
+    // 切換視角邏輯 (Multiplexer)
     always @(*) begin
-        if (is_out_of_map) begin
-            // 如果超出地圖範圍，不需要讀取有效資料 (設為0或其他安全值)
-            pixel_addr = 0;
+        if (is_left_screen) begin
+            // [P1 View]
+            screen_rel_x  = h_cnt;
+            my_world_x    = p1_world_x;
+            my_world_y    = p1_world_y;
+            my_degree     = p1_degree;
+            enemy_world_x = p2_world_x;
+            enemy_world_y = p2_world_y;
+            enemy_degree  = p2_degree;
         end else begin
-            // 公式: Base + (Y * Width) + X
-            pixel_addr = (map_global_y * 320) + map_global_x;
+            // [P2 View]
+            screen_rel_x  = h_cnt - 320;
+            my_world_x    = p2_world_x;
+            my_world_y    = p2_world_y;
+            my_degree     = p2_degree;
+            enemy_world_x = p1_world_x;
+            enemy_world_y = p1_world_y;
+            enemy_degree  = p1_degree;
         end
     end
 
-    // --- 4. 最終顏色輸出 (Priority Logic) ---
-    // 優先順序: 
-    // 1. !valid (消隱期) -> 全黑
-    // 2. 中央區域 AND 車子非透明 -> 顯示車子
-    // 3. 超出地圖範圍 -> 顯示綠色
-    // 4. 其他 -> 顯示地圖
+    // --- 記憶體位址計算 ---
 
-    reg [11:0] final_color;
+    // A. 地圖位址計算 (Map Address)
+    reg [16:0] addr_map;
+    wire [11:0] data_map;
+    
+    // 地圖的世界座標
+    wire [9:0] map_global_x = (screen_rel_x >> 1) + (my_world_x - 80); // 假設中心在160，地圖縮放2倍
+    wire [9:0] map_global_y = (v_cnt >> 1) + (my_world_y - 60);        // 假設中心在240(120*2)
+    wire is_out_of_map = (map_global_x >= MAP_WIDTH) || (map_global_y >= MAP_HEIGHT);
 
     always @(*) begin
+        if (is_out_of_map) addr_map = 0;
+        else addr_map = MAP_BASE_ADDR + (map_global_y * 320) + map_global_x;
+    end
+
+    blk_mem_gen_0 map_ram (.clka(clk_25MHz), .addra(addr_map), .douta(data_map));
+
+
+    // B. 車子位址計算 (Car Address) - True Dual Port
+    reg [16:0] addr_car_self;
+    wire [11:0] data_car_self;
+    reg [16:0] addr_car_enemy;
+    wire [11:0] data_car_enemy;
+
+    // 1. [自己的車] (固定在畫面中心)
+    // 螢幕中心 (160, 240), 車寬 75 -> 範圍 X[123, 197], Y[203, 277]
+    wire is_self_box = (screen_rel_x >= 123 && screen_rel_x <= 197) && 
+                       (v_cnt >= 203 && v_cnt <= 277);
+    
+    // 計算 Self 旋轉位址
+    wire [16:0] calc_addr_self;
+    car_addr addr_logic_self (
+        .degree(my_degree),
+        .pixel_x(screen_rel_x - 10'd123),
+        .pixel_y(v_cnt - 10'd203),
+        .rom_addr(calc_addr_self)
+    );
+
+    // 2. [敵人的車] (相對座標)
+    // 距離 = (Enemy - Me) * 2 (地圖放大倍率)
+    wire signed [10:0] diff_x = (enemy_world_x - my_world_x) * 2;
+    wire signed [10:0] diff_y = (enemy_world_y - my_world_y) * 2;
+    wire signed [10:0] enemy_center_x = 160 + diff_x;
+    wire signed [10:0] enemy_center_y = 240 + diff_y;
+    
+    // 敵車判定框 (Box Check)
+    wire is_enemy_box = (screen_rel_x >= (enemy_center_x - 37)) && (screen_rel_x <= (enemy_center_x + 37)) &&
+                        (v_cnt >= (enemy_center_y - 37)) && (v_cnt <= (enemy_center_y + 37));
+
+    // 計算 Enemy 旋轉位址
+    wire [16:0] calc_addr_enemy;
+    car_addr addr_logic_enemy (
+        .degree(enemy_degree),
+        .pixel_x(screen_rel_x - (enemy_center_x - 10'd37)), // 使用 wire 運算後的座標
+        .pixel_y(v_cnt - (enemy_center_y - 10'd37)),
+        .rom_addr(calc_addr_enemy)
+    );
+
+    // 分配位址給 BRAM
+    always @(*) begin
+        addr_car_self  = is_self_box  ? calc_addr_self  : 17'd0;
+        addr_car_enemy = is_enemy_box ? calc_addr_enemy : 17'd0;
+    end
+
+    // 雙埠記憶體實例化
+    blk_mem_gen_1 car_ram (
+        .clka(clk_25MHz), .addra(addr_car_self), .douta(data_car_self),   // Port A: Self
+        .clkb(clk_25MHz), .addrb(addr_car_enemy), .doutb(data_car_enemy)  // Port B: Enemy
+    );
+
+    // --- 4. 最終顏色輸出 (Priority Mux) ---
+    reg [11:0] final_color;
+    
+    always @(*) begin
         if (!valid) begin
-            final_color = 12'h000;
+            final_color = 12'h000; // Blanking
+        end else if (is_separator) begin
+            final_color = SEPARATOR_COLOR; // 分割線
         end 
-        // 如果在中央格子 且 車子顏色不是透明色(12'h000)
-        else if (is_center_box && car_data != 12'h000) begin
-            final_color = car_data;
-        end 
-        // (重要) 如果上面沒顯示車子，且地圖座標已經出界 -> 顯示綠色背景
-        else if (is_out_of_map) begin
-            final_color = OUT_BOUND_COLOR; 
-        end 
-        // 顯示正常地圖背景 (這會透過車子的透明部分顯示出來，或者顯示在車子框框外)
         else begin
-            final_color = pixel_data;
+            // 優先顯示自己的車
+            if (is_self_box && data_car_self != TRANSPARENT) 
+                final_color = data_car_self;
+            // 其次顯示敵人的車 (Ghost)
+            else if (is_enemy_box && data_car_enemy != TRANSPARENT) 
+                final_color = data_car_enemy;
+            // 檢查是否超出地圖
+            else if (is_out_of_map) 
+                final_color = OUT_BOUND_COLOR;
+            // 最後顯示地圖背景
+            else 
+                final_color = data_map;
         end
     end
 
