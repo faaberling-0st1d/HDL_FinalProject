@@ -39,10 +39,10 @@ module Top (
     );
 
     // 3. 遊戲物理引擎 (處理移動、碰撞)
-    PhysicsEngine engine (
+   /* PhysicsEngine engine (
         .clk(clk), .rst(rst),
         //待完成
-    );
+    );*/
 
     // --- 渲染變數 (Rendering Logic) ---
     
@@ -98,7 +98,7 @@ module Top (
     wire [3:0] map_color;
     blk_mem_gen_0 map_ram (.clka(clk_25MHz), .addra(addr_map), .douta(map_color));
     color_decoder map_color_decoder(.color_index(map_color),  // 從 BRAM 讀出來的 0~5
-    ,.rgb_data(data_map));
+    .rgb_data(data_map));
 
     // B. 車子位址計算 (Car Address) - True Dual Port
     reg [16:0] addr_car_self;
@@ -147,7 +147,8 @@ module Top (
     end
 
     // 雙埠記憶體實例化
-    wire [3:0]car_self_color,[3:0]car_enemy_color;
+    wire [3:0]car_self_color;
+    wire [3:0]car_enemy_color;
     blk_mem_gen_1 car_ram (
         .clka(clk_25MHz), .addra(addr_car_self), .douta(car_self_color),   // Port A: Self
         .clkb(clk_25MHz), .addrb(addr_car_enemy), .doutb(car_enemy_color)  // Port B: Enemy

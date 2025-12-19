@@ -1,7 +1,7 @@
 module car_addr (
     input wire [8:0] degree,     // 0~359
-    input wire [6:0] pixel_x,    // 0~74
-    input wire [6:0] pixel_y,    // 0~74
+    input wire [9:0] pixel_x,    // 0~74
+    input wire [9:0] pixel_y,    // 0~74
     output reg [16:0] rom_addr   // 0~89999
 );
     // --------------------------------------------------------
