@@ -26,9 +26,9 @@ module Top (
     wire [9:0] h_cnt, v_cnt;
 
     // 從 Engine 來的資訊
-    reg [9:0] p1_world_x, p1_world_y;
-    reg [9:0] p2_world_x, p2_world_y;
-    reg [8:0] p1_degree,  p2_degree;
+    wire [9:0] p1_world_x, p1_world_y;
+    wire [9:0] p2_world_x, p2_world_y;
+    wire [8:0] p1_degree,  p2_degree;
 
     // --- 模組實例化 ---
     
@@ -41,23 +41,23 @@ module Top (
         .h_cnt(h_cnt), .v_cnt(v_cnt)
     );
     
-    //測試用 可刪
-    wire rst_db,rst_op;
-    wire test;
-    clock_divider #(.n(20)) testclk(.clk(clk), .clk_div(test));
-    debounce db1(.pb_debounced(rst_db),   .pb(btn_up),   .clk(clk));
-    onepulse op1(.signal(rst_db),   .clk(clk), .op(rst_op));
-    always@(posedge test)begin
-        if(rst)begin p1_degree<=0;p1_world_x<=15;p1_world_y<=125;p2_world_x<=25;p2_world_y<=125;p2_degree<=0; end
-        else begin 
-            if(up)begin
-                p1_world_y=p1_world_y+1;
-            end
-            else if(down)p1_world_y=p1_world_y-1;
-            else if(right)p1_world_x=p1_world_x+1;
-            else if(left)p1_world_x=p1_world_x-1;   
-        end
-    end
+    // [12/20] 測試用座標 assignment 刪除
+    // wire rst_db,rst_op;
+    // wire test;
+    // clock_divider #(.n(20)) testclk(.clk(clk), .clk_div(test));
+    // debounce db1(.pb_debounced(rst_db),   .pb(btn_up),   .clk(clk));
+    // onepulse op1(.signal(rst_db),   .clk(clk), .op(rst_op));
+    // always@(posedge test)begin
+    //     if(rst)begin p1_degree<=0;p1_world_x<=15;p1_world_y<=125;p2_world_x<=25;p2_world_y<=125;p2_degree<=0; end
+    //     else begin 
+    //         if(up)begin
+    //             p1_world_y=p1_world_y+1;
+    //         end
+    //         else if(down)p1_world_y=p1_world_y-1;
+    //         else if(right)p1_world_x=p1_world_x+1;
+    //         else if(left)p1_world_x=p1_world_x-1;   
+    //     end
+    // end
 
     // 3. Operation Encoder Module
     // 從鍵盤接收訊息
@@ -68,13 +68,12 @@ module Top (
     wire       p2_boost;
     wire       p2_honk;
     OperationEncoder op_encoder (
-        .clk(clk),
-        .rst(rst),
+        .clk(clk), .rst(rst),
 
 	    .PS2_DATA(PS2_DATA),
 	    .PS2_CLK(PS2_CLK),
 
-        .state(3'd4), // Current state from the FSM (StateEncoder)
+        .state(3'd4 /* 設為 RACING 先 */), // Current state from the FSM (StateEncoder)
     
         .p1_operation_code(p1_operation_code), // Left Cart Direction.
         .p1_boost(p1_boost),          // Left Cart Speed-up.
@@ -84,12 +83,36 @@ module Top (
         .p2_boost(p2_boost),          // Right Cart Speed-up
         .p2_honk(p2_honk)            // Right Cart Honk
     );
-    
+
     // 4. 遊戲物理引擎 (處理移動、碰撞)
-   /* PhysicsEngine engine (
+    // p1 (左邊)
+    PhysicsEngine #(
+        .START_X(8'd15), .START_Y(8'd125)
+    ) p1_engine (
         .clk(clk), .rst(rst),
-        //待完成
-    );*/
+
+        .state(3'd4 /* 設為 RACING 先 */), // From StateEncoder
+
+        .operation_code(p1_operation_code), // From OperationEncoder Module
+        .boost(p1_boost),                   // From OperationEncoder Module
+
+        .pos_x(p1_world_x), .pos_y(p1_world_y),
+        .angle(p1_degree)
+    );
+
+    PhysicsEngine #(
+        .START_X(8'd25), .START_Y(8'd125)
+    ) p2_engine (
+        .clk(clk), .rst(rst),
+
+        .state(3'd4 /* 設為 RACING 先 */), // From StateEncoder
+
+        .operation_code(p2_operation_code), // From OperationEncoder Module
+        .boost(p2_boost),                   // From OperationEncoder Module
+
+        .pos_x(p2_world_x), .pos_y(p2_world_y),
+        .angle(p2_degree)
+    );
 
     // --- 渲染變數 (Rendering Logic) ---
     
