@@ -1,4 +1,4 @@
-//顏色編碼：0=透明, 1=紅, 2=深紅, 3=黃, 4=黑, 5=灰, 6=綠, 7=土黃, 8=白
+//顏色編碼：0=透明, 1=紅, 2=深紅, 3=黃, 4=黑, 5=灰, 6=綠, 7=土黃, 8=白,9亮綠,10淺灰
 module color_decoder (
     input wire [3:0] color_index,
     input wire is_b,
@@ -23,6 +23,8 @@ module color_decoder (
             4'd6: rgb_data = 12'h6B4; // 綠
             4'd7: rgb_data = 12'hDD0; //土黃
             4'd8: rgb_data = 12'hFFF; // 白
+            4'd9: rgb_data = 12'h0F0;
+            4'd10: rgb_data = 12'hBBB;
             default: rgb_data = 12'hF0F; // 錯誤處理 (紫色)，若出現預期外的數值方便除錯
         endcase
     end
