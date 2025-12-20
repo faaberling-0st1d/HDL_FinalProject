@@ -44,10 +44,12 @@ module Top (
 
     // 3. Operation Encoder Module
     // 從鍵盤接收訊息
-    wire [2:0] p1_operation_code;
+    wire [1:0] p1_h_code;
+    wire [1:0] p1_v_code;
     wire       p1_boost;
     wire       p1_honk;
-    wire [2:0] p2_operation_code;
+    wire [1:0] p2_h_code;
+    wire [1:0] p2_v_code;
     wire       p2_boost;
     wire       p2_honk;
     OperationEncoder op_encoder (
@@ -58,13 +60,13 @@ module Top (
 
         .state(3'd4 /* 設為 RACING 先 */), // Current state from the FSM (StateEncoder)
     
-        .p1_operation_code(p1_operation_code), // Left Cart Direction.
-        .p1_boost(p1_boost),          // Left Cart Speed-up.
-        .p1_honk(p1_honk),           // Left Cart Honk
+        .p1_h_code(p1_h_code), .p1_v_code(p1_v_code),
+        .p1_boost(p1_boost),
+        .p1_honk(p1_honk),
 
-        .p2_operation_code(p2_operation_code), // Right Cart Direction.
-        .p2_boost(p2_boost),          // Right Cart Speed-up
-        .p2_honk(p2_honk)            // Right Cart Honk
+        .p2_h_code(p2_h_code), .p2_v_code(p2_v_code),
+        .p2_boost(p2_boost),
+        .p2_honk(p2_honk)
     );
 
     // 4. 遊戲物理引擎 (處理移動、碰撞)
@@ -77,7 +79,7 @@ module Top (
 
         .state(3'd4 /* 設為 RACING 先 */), // From StateEncoder
 
-        .operation_code(p1_operation_code), // From OperationEncoder Module
+        .h_code(p1_h_code), .v_code(p1_v_code), // From OperationEncoder Module
         .boost(p1_boost),                   // From OperationEncoder Module
 
         .pos_x(p1_world_x), .pos_y(p1_world_y),
@@ -94,7 +96,7 @@ module Top (
 
         .state(3'd4 /* 設為 RACING 先 */), // From StateEncoder
 
-        .operation_code(p2_operation_code), // From OperationEncoder Module
+        .h_code(p2_h_code), .v_code(p2_v_code), // From OperationEncoder Module
         .boost(p2_boost),                   // From OperationEncoder Module
 
         .pos_x(p2_world_x), .pos_y(p2_world_y),
@@ -373,16 +375,22 @@ module SevenSegment(
     
     always @ (*) begin
     	case (display_num)
-    		0 : display = 7'b1000000;	//0000
-			1 : display = 7'b1111001;   //0001                                                
-			2 : display = 7'b0100100;   //0010                                                
-			3 : display = 7'b0110000;   //0011                                             
-			4 : display = 7'b0011001;   //0100                                               
-			5 : display = 7'b0010010;   //0101                                               
-			6 : display = 7'b0000010;   //0110
-			7 : display = 7'b1111000;   //0111
-			8 : display = 7'b0000000;   //1000
-			9 : display = 7'b0010000;	//1001
+    		0  : display = 7'b1000000; // 0000 (0)
+			1  : display = 7'b1111001; // 0001 (1)                                             
+			2  : display = 7'b0100100; // 0010 (2)                                            
+			3  : display = 7'b0110000; // 0011 (3)                                         
+			4  : display = 7'b0011001; // 0100 (4)                                           
+			5  : display = 7'b0010010; // 0101 (5)                                           
+			6  : display = 7'b0000010; // 0110 (6)
+			7  : display = 7'b1111000; // 0111 (7)
+			8  : display = 7'b0000000; // 1000 (8)
+			9  : display = 7'b0010000; // 1001 (9)
+            10 : display = 7'b0001000; // 1010 (A)
+            11 : display = 7'b0000011; // 1011 (b)
+            12 : display = 7'b1000110; // 1100 (C)
+            13 : display = 7'b0100001; // 1101 (d)
+            14 : display = 7'b0000110; // 1110 (E)
+            15 : display = 7'b0001110; // 1111 (F)
 			default : display = 7'b1111111;
     	endcase
     end
