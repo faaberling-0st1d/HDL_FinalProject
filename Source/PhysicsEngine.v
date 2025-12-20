@@ -15,16 +15,16 @@ module PhysicsEngine #(
     output reg [8:0] angle
 );
     /* [Speed, Acceleration, Angle] */
-    reg signed [7:0] speed, next_speed;
-    reg signed [7:0] acceleration, next_acceleration;
-    reg        [3:0] next_angle;
-    parameter ANGLE_NUM = 360;
+    reg signed [9:0] speed, next_speed;
+    reg signed [9:0] acceleration, next_acceleration;
+    reg        [8:0] next_angle;
+    localparam ANGLE_NUM = 9'd360;
     // Map constraints
-    parameter MAP_MAX_X = 320, MAP_MAX_Y = 240;
+    localparam MAP_MAX_X = 10'd320, MAP_MAX_Y = 10'd240;
 
     /* [Position (Coordinates)] */
-    reg       [15:0] next_pos_x;
-    reg       [15:0] next_pos_y;
+    reg       [9:0] next_pos_x;
+    reg       [9:0] next_pos_y;
 
     /* [Operations] */
     localparam NIL      = 3'd0;
@@ -47,9 +47,9 @@ module PhysicsEngine #(
      */
     always @(posedge clk) begin
         if (rst) begin
-            speed        <= 8'd0;
-            acceleration <= 8'd0;
-            angle        <= 8'd0;
+            speed        <= 10'd0;
+            acceleration <= 10'd0;
+            angle        <= 9'd0;
             
             pos_x <= START_X;
             pos_y <= START_Y;
@@ -72,14 +72,14 @@ module PhysicsEngine #(
         case (state)
             RACING: begin
                 if (operation_code != NIL) begin
-                    next_acceleration = (boost) ? 8'd20 : 8'd5 /* 上下左右自然加上速 */;
+                    next_acceleration = (boost) ? 10'd20 : 10'd5 /* 上下左右自然加上速 */;
                 end else begin
-                    next_acceleration = (speed == 8'd0) ? 8'd0 : -8'd5 /* 自然減速 */;
+                    next_acceleration = (speed == 10'd0) ? 10'd0 : -10'd5 /* 自然減速 */;
                 end
             end
 
             PAUSE:   next_acceleration = acceleration; // Remain the same value.
-            default: next_acceleration = 8'd0;
+            default: next_acceleration = 10'd0;
         endcase
     end
     
@@ -91,10 +91,10 @@ module PhysicsEngine #(
 
         case (state)
             RACING: begin
-                next_speed = (speed + acceleration < 0) ? 8'd0 /* Remain 0 if the sum is less than 0 */ : speed + acceleration;
+                next_speed = (speed + acceleration < 0) ? 10'd0 /* Remain 0 if the sum is less than 0 */ : speed + acceleration;
             end
             PAUSE:   next_speed = speed;
-            default: next_speed = 8'd0;
+            default: next_speed = 10'd0;
         endcase
     end
 
@@ -114,19 +114,44 @@ module PhysicsEngine #(
         next_pos_x = pos_x;
         next_pos_y = pos_y;
 
-        case (operation_code)
-            FORWARD: begin
-                next_pos_y = (pos_y == MAP_MAX_Y - 1) ? pos_y : pos_y + 1;
-            end
-            BACKWARD: begin
-                next_pos_y = (pos_y == 0) ? pos_y : pos_y - 1;
-            end
-            LEFT: begin
-                next_pos_x = (pos_x == 0) ? pos_x : pos_x + 1;
-            end
-            RIGHT: begin
-                next_pos_x = (pos_x == MAP_MAX_X - 1) ? pos_x : pos_x + 1;
-            end
-        endcase
+        if (state == RACING) begin
+            case (operation_code)
+                FORWARD:  next_pos_y = pos_y + 1; // 先用常數 1 測試
+                BACKWARD: next_pos_y = pos_y - 1;
+                LEFT:     next_pos_x = pos_x - 1;
+                RIGHT:    next_pos_x = pos_x + 1;
+                default: ; 
+            endcase
+        end
     end
+    // always @(*) begin
+    //     next_pos_x = pos_x;
+    //     next_pos_y = pos_y;
+
+    //     if (state == RACING) begin
+    //         case (operation_code)
+    //             FORWARD: begin
+    //                 if ($signed({2'b0, pos_y}) + $signed(speed) >= MAP_MAX_Y) 
+    //                     next_pos_y = MAP_MAX_Y - 1;
+    //                 else if ($signed({2'b0, pos_y}) + $signed(speed) <= 0)
+    //                     next_pos_y = 0;
+    //                 else
+    //                     next_pos_y = pos_y + speed;
+    //             end
+    //             BACKWARD: begin
+    //                 next_pos_y = (pos_y <= speed) ? 0 : pos_y - 2;
+    //             end
+    //             LEFT: begin
+    //                 next_pos_x = (pos_x <= speed) ? 0 : pos_x - 2;
+    //             end
+    //             RIGHT: begin
+    //                 next_pos_x = (pos_x >= MAP_MAX_X - speed) ? pos_x : pos_x + 2;
+    //             end
+    //             default: begin
+    //                 next_pos_x = pos_x;
+    //                 next_pos_y = pos_y;
+    //             end
+    //         endcase
+    //     end
+    // end
 endmodule

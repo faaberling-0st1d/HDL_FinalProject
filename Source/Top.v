@@ -27,6 +27,15 @@ module Top (
     wire [9:0] p2_world_x, p2_world_y;
     wire [8:0] p1_degree,  p2_degree;
 
+    // [12/20] 測試用，修正 Physics Engine
+    // assign p1_world_x = 10'd15;
+    // assign p1_world_y = 10'd125;
+    // assign p1_degree  = 9'd0;
+    // assign p2_world_x = 10'd25;
+    // assign p2_world_y = 10'd125;
+    // assign p2_degree  = 9'd0;
+
+
     // --- 模組實例化 ---
     
     // 1. 時脈除頻
@@ -37,24 +46,6 @@ module Top (
         .hsync(hsync), .vsync(vsync), .valid(valid),
         .h_cnt(h_cnt), .v_cnt(v_cnt)
     );
-    
-    // [12/20] 測試用座標 assignment 刪除
-    // wire rst_db,rst_op;
-    // wire test;
-    // clock_divider #(.n(20)) testclk(.clk(clk), .clk_div(test));
-    // debounce db1(.pb_debounced(rst_db),   .pb(btn_up),   .clk(clk));
-    // onepulse op1(.signal(rst_db),   .clk(clk), .op(rst_op));
-    // always@(posedge test)begin
-    //     if(rst)begin p1_degree<=0;p1_world_x<=15;p1_world_y<=125;p2_world_x<=25;p2_world_y<=125;p2_degree<=0; end
-    //     else begin 
-    //         if(up)begin
-    //             p1_world_y=p1_world_y+1;
-    //         end
-    //         else if(down)p1_world_y=p1_world_y-1;
-    //         else if(right)p1_world_x=p1_world_x+1;
-    //         else if(left)p1_world_x=p1_world_x-1;   
-    //     end
-    // end
 
     // 3. Operation Encoder Module
     // 從鍵盤接收訊息
@@ -110,6 +101,7 @@ module Top (
         .pos_x(p2_world_x), .pos_y(p2_world_y),
         .angle(p2_degree)
     );
+    
 
     // --- 渲染變數 (Rendering Logic) ---
     
