@@ -8,7 +8,10 @@ module Top (
     output wire [3:0] vgaGreen,
     output wire [3:0] vgaBlue,
     output wire hsync,
-    output wire vsync
+    output wire vsync,
+    // 7 Segment 輸出
+    output wire [6:0] display,
+    output wire [3:0] digit
 );
     // --- 參數設定 ---
     parameter MAP_BASE_ADDR   = 17'd90001; // 地圖起始位址
@@ -27,14 +30,6 @@ module Top (
     wire [9:0] p2_world_x, p2_world_y;
     wire [8:0] p1_degree,  p2_degree;
 
-    // [12/20] 測試用，修正 Physics Engine
-    // assign p1_world_x = 10'd15;
-    // assign p1_world_y = 10'd125;
-    // assign p1_degree  = 9'd0;
-    // assign p2_world_x = 10'd25;
-    // assign p2_world_y = 10'd125;
-    // assign p2_degree  = 9'd0;
-
 
     // --- 模組實例化 ---
     
@@ -49,10 +44,12 @@ module Top (
 
     // 3. Operation Encoder Module
     // 從鍵盤接收訊息
-    wire [2:0] p1_operation_code;
+    wire [1:0] p1_h_code;
+    wire [1:0] p1_v_code;
     wire       p1_boost;
     wire       p1_honk;
-    wire [2:0] p2_operation_code;
+    wire [1:0] p2_h_code;
+    wire [1:0] p2_v_code;
     wire       p2_boost;
     wire       p2_honk;
     OperationEncoder op_encoder (
@@ -63,17 +60,18 @@ module Top (
 
         .state(3'd4 /* 設為 RACING 先 */), // Current state from the FSM (StateEncoder)
     
-        .p1_operation_code(p1_operation_code), // Left Cart Direction.
-        .p1_boost(p1_boost),          // Left Cart Speed-up.
-        .p1_honk(p1_honk),           // Left Cart Honk
+        .p1_h_code(p1_h_code), .p1_v_code(p1_v_code),
+        .p1_boost(p1_boost),
+        .p1_honk(p1_honk),
 
-        .p2_operation_code(p2_operation_code), // Right Cart Direction.
-        .p2_boost(p2_boost),          // Right Cart Speed-up
-        .p2_honk(p2_honk)            // Right Cart Honk
+        .p2_h_code(p2_h_code), .p2_v_code(p2_v_code),
+        .p2_boost(p2_boost),
+        .p2_honk(p2_honk)
     );
 
     // 4. 遊戲物理引擎 (處理移動、碰撞)
     // p1 (左邊)
+    wire [9:0] p1_speed;
     PhysicsEngine #(
         .START_X(8'd15), .START_Y(8'd125)
     ) p1_engine (
@@ -81,13 +79,16 @@ module Top (
 
         .state(3'd4 /* 設為 RACING 先 */), // From StateEncoder
 
-        .operation_code(p1_operation_code), // From OperationEncoder Module
+        .h_code(p1_h_code), .v_code(p1_v_code), // From OperationEncoder Module
         .boost(p1_boost),                   // From OperationEncoder Module
 
         .pos_x(p1_world_x), .pos_y(p1_world_y),
-        .angle(p1_degree)
+        .angle(p1_degree),
+
+        .speed_out(p1_speed)
     );
 
+    wire [9:0] p2_speed;
     PhysicsEngine #(
         .START_X(8'd25), .START_Y(8'd125)
     ) p2_engine (
@@ -95,13 +96,23 @@ module Top (
 
         .state(3'd4 /* 設為 RACING 先 */), // From StateEncoder
 
-        .operation_code(p2_operation_code), // From OperationEncoder Module
+        .h_code(p2_h_code), .v_code(p2_v_code), // From OperationEncoder Module
         .boost(p2_boost),                   // From OperationEncoder Module
 
         .pos_x(p2_world_x), .pos_y(p2_world_y),
-        .angle(p2_degree)
+        .angle(p2_degree),
+
+        .speed_out(p2_speed)
     );
-    
+
+    // 七段顯示器（Debug 用）
+    SevenSegment seven_seg (
+        .display(display),
+        .digit(digit),
+        .nums({p1_speed[7:0], p2_speed[7:0]}),
+        .clk(clk),
+        .rst(rst)
+    );    
 
     // --- 渲染變數 (Rendering Logic) ---
     
@@ -311,4 +322,77 @@ module Top (
     assign vgaGreen = final_color[7:4];
     assign vgaBlue  = final_color[3:0];
 
+endmodule
+
+module SevenSegment(
+	output reg [6:0] display,
+	output reg [3:0] digit,
+	input wire [15:0] nums,
+	input wire rst,
+	input wire clk
+    );
+    
+    reg [15:0] clk_divider;
+    reg [3:0] display_num;
+    
+    always @ (posedge clk, posedge rst) begin
+    	if (rst) begin
+    		clk_divider <= 15'b0;
+    	end else begin
+    		clk_divider <= clk_divider + 15'b1;
+    	end
+    end
+    
+    always @ (posedge clk_divider[15], posedge rst) begin
+    	if (rst) begin
+    		display_num <= 4'b0000;
+    		digit <= 4'b1111;
+    	end else begin
+    		case (digit)
+    			4'b1110 : begin
+    					display_num <= nums[7:4];
+    					digit <= 4'b1101;
+    				end
+    			4'b1101 : begin
+						display_num <= nums[11:8];
+						digit <= 4'b1011;
+					end
+    			4'b1011 : begin
+						display_num <= nums[15:12];
+						digit <= 4'b0111;
+					end
+    			4'b0111 : begin
+						display_num <= nums[3:0];
+						digit <= 4'b1110;
+					end
+    			default : begin
+						display_num <= nums[3:0];
+						digit <= 4'b1110;
+					end				
+    		endcase
+    	end
+    end
+    
+    always @ (*) begin
+    	case (display_num)
+    		0  : display = 7'b1000000; // 0000 (0)
+			1  : display = 7'b1111001; // 0001 (1)                                             
+			2  : display = 7'b0100100; // 0010 (2)                                            
+			3  : display = 7'b0110000; // 0011 (3)                                         
+			4  : display = 7'b0011001; // 0100 (4)                                           
+			5  : display = 7'b0010010; // 0101 (5)                                           
+			6  : display = 7'b0000010; // 0110 (6)
+			7  : display = 7'b1111000; // 0111 (7)
+			8  : display = 7'b0000000; // 1000 (8)
+			9  : display = 7'b0010000; // 1001 (9)
+            10 : display = 7'b0001000; // 1010 (A)
+            11 : display = 7'b0000011; // 1011 (b)
+            12 : display = 7'b1000110; // 1100 (C)
+            13 : display = 7'b0100001; // 1101 (d)
+            14 : display = 7'b0000110; // 1110 (E)
+            15 : display = 7'b0001110; // 1111 (F)
+			default : display = 7'b1111111;
+    	endcase
+    end
+    
 endmodule
