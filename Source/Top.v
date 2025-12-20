@@ -1,11 +1,8 @@
 module Top (
     input wire clk,
     input wire rst,
-    input btn_up,
-    input up,
-    input right,
-    input left,
-    input down,
+    inout wire PS2_CLK,
+    inout wire PS2_DATA,
     // VGA 輸出
     output wire [3:0] vgaRed,
     output wire [3:0] vgaGreen,
