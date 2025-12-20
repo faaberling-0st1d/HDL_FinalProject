@@ -70,11 +70,11 @@ module OperationEncoder (
     localparam FINISH    = 3'd6;
 
     /* [Operations] */
-    localparam NIL      = 3'd0;
-    localparam FORWARD  = 3'd1;
-    localparam BACKWARD = 3'd2;
-    localparam LEFT     = 3'd3;
-    localparam RIGHT    = 3'd4;
+    localparam NIL   = 3'd0;
+    localparam UP    = 3'd1;
+    localparam DOWN  = 3'd2;
+    localparam LEFT  = 3'd3;
+    localparam RIGHT = 3'd4;
 
     /* [Sequential] */
     always @(posedge clk) begin
@@ -99,8 +99,8 @@ module OperationEncoder (
             if (state == RACING) begin
                 if (been_ready) begin
                     /* LEFT CART */
-                    if      (key_down[KEY_W]) p1_operation_code <= FORWARD;
-                    else if (key_down[KEY_S]) p1_operation_code <= BACKWARD;
+                    if      (key_down[KEY_W]) p1_operation_code <= UP;
+                    else if (key_down[KEY_S]) p1_operation_code <= DOWN;
                     else if (key_down[KEY_A]) p1_operation_code <= LEFT;
                     else if (key_down[KEY_D]) p1_operation_code <= RIGHT;
                     else                      p1_operation_code <= NIL;
@@ -114,8 +114,8 @@ module OperationEncoder (
                     end
 
                     /* RIGHT CART */
-                    if      (key_down[KEY_UP])    p2_operation_code <= FORWARD;
-                    else if (key_down[KEY_DOWN])  p2_operation_code <= BACKWARD;
+                    if      (key_down[KEY_UP])    p2_operation_code <= UP;
+                    else if (key_down[KEY_DOWN])  p2_operation_code <= DOWN;
                     else if (key_down[KEY_LEFT])  p2_operation_code <= LEFT;
                     else if (key_down[KEY_RIGHT]) p2_operation_code <= RIGHT;
                     else                          p2_operation_code <= NIL;

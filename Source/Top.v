@@ -8,7 +8,10 @@ module Top (
     output wire [3:0] vgaGreen,
     output wire [3:0] vgaBlue,
     output wire hsync,
-    output wire vsync
+    output wire vsync,
+    // 7 Segment 輸出
+    output wire [6:0] display,
+    output wire [3:0] digit
 );
     // --- 參數設定 ---
     parameter MAP_BASE_ADDR   = 17'd90001; // 地圖起始位址
@@ -26,14 +29,6 @@ module Top (
     wire [9:0] p1_world_x, p1_world_y;
     wire [9:0] p2_world_x, p2_world_y;
     wire [8:0] p1_degree,  p2_degree;
-
-    // [12/20] 測試用，修正 Physics Engine
-    // assign p1_world_x = 10'd15;
-    // assign p1_world_y = 10'd125;
-    // assign p1_degree  = 9'd0;
-    // assign p2_world_x = 10'd25;
-    // assign p2_world_y = 10'd125;
-    // assign p2_degree  = 9'd0;
 
 
     // --- 模組實例化 ---
@@ -74,6 +69,7 @@ module Top (
 
     // 4. 遊戲物理引擎 (處理移動、碰撞)
     // p1 (左邊)
+    wire [9:0] p1_speed;
     PhysicsEngine #(
         .START_X(8'd15), .START_Y(8'd125)
     ) p1_engine (
@@ -85,9 +81,12 @@ module Top (
         .boost(p1_boost),                   // From OperationEncoder Module
 
         .pos_x(p1_world_x), .pos_y(p1_world_y),
-        .angle(p1_degree)
+        .angle(p1_degree),
+
+        .speed_out(p1_speed)
     );
 
+    wire [9:0] p2_speed;
     PhysicsEngine #(
         .START_X(8'd25), .START_Y(8'd125)
     ) p2_engine (
@@ -99,9 +98,19 @@ module Top (
         .boost(p2_boost),                   // From OperationEncoder Module
 
         .pos_x(p2_world_x), .pos_y(p2_world_y),
-        .angle(p2_degree)
+        .angle(p2_degree),
+
+        .speed_out(p2_speed)
     );
-    
+
+    // 七段顯示器（Debug 用）
+    SevenSegment seven_seg (
+        .display(display),
+        .digit(digit),
+        .nums({p1_speed[7:0], p2_speed[7:0]}),
+        .clk(clk),
+        .rst(rst)
+    );    
 
     // --- 渲染變數 (Rendering Logic) ---
     
@@ -311,4 +320,71 @@ module Top (
     assign vgaGreen = final_color[7:4];
     assign vgaBlue  = final_color[3:0];
 
+endmodule
+
+module SevenSegment(
+	output reg [6:0] display,
+	output reg [3:0] digit,
+	input wire [15:0] nums,
+	input wire rst,
+	input wire clk
+    );
+    
+    reg [15:0] clk_divider;
+    reg [3:0] display_num;
+    
+    always @ (posedge clk, posedge rst) begin
+    	if (rst) begin
+    		clk_divider <= 15'b0;
+    	end else begin
+    		clk_divider <= clk_divider + 15'b1;
+    	end
+    end
+    
+    always @ (posedge clk_divider[15], posedge rst) begin
+    	if (rst) begin
+    		display_num <= 4'b0000;
+    		digit <= 4'b1111;
+    	end else begin
+    		case (digit)
+    			4'b1110 : begin
+    					display_num <= nums[7:4];
+    					digit <= 4'b1101;
+    				end
+    			4'b1101 : begin
+						display_num <= nums[11:8];
+						digit <= 4'b1011;
+					end
+    			4'b1011 : begin
+						display_num <= nums[15:12];
+						digit <= 4'b0111;
+					end
+    			4'b0111 : begin
+						display_num <= nums[3:0];
+						digit <= 4'b1110;
+					end
+    			default : begin
+						display_num <= nums[3:0];
+						digit <= 4'b1110;
+					end				
+    		endcase
+    	end
+    end
+    
+    always @ (*) begin
+    	case (display_num)
+    		0 : display = 7'b1000000;	//0000
+			1 : display = 7'b1111001;   //0001                                                
+			2 : display = 7'b0100100;   //0010                                                
+			3 : display = 7'b0110000;   //0011                                             
+			4 : display = 7'b0011001;   //0100                                               
+			5 : display = 7'b0010010;   //0101                                               
+			6 : display = 7'b0000010;   //0110
+			7 : display = 7'b1111000;   //0111
+			8 : display = 7'b0000000;   //1000
+			9 : display = 7'b0010000;	//1001
+			default : display = 7'b1111111;
+    	endcase
+    end
+    
 endmodule
