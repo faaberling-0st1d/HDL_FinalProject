@@ -69,7 +69,9 @@ module Top (
     // 狀態判斷
     wire is_left_screen = (h_cnt < 320);
     wire is_separator   = (h_cnt == 319 || h_cnt == 320);
-
+    wire is_hud_separator   = (v_cnt == 359 || v_cnt == 360);
+    wire is_hud_area = (v_cnt >= 360); // 下方 120 pixel 為介面區
+    wire is_minimap_area = (h_cnt >= 240 && h_cnt < 400) && (v_cnt >= 360);
     // 動態變數 (根據目前掃描左右邊切換)
     reg [9:0] my_world_x, my_world_y;       // 當前畫面主角
     reg [9:0] enemy_world_x, enemy_world_y; // 當前畫面敵人
@@ -107,18 +109,40 @@ module Top (
     
     // 地圖的世界座標
     wire [9:0] map_global_x = (screen_rel_x >> 2) + (my_world_x - 40); // 假設中心在160，地圖縮放2倍
-    wire [9:0] map_global_y = (v_cnt >> 2) + (my_world_y - 60);        // 假設中心在240(120*2)
+    wire [9:0] map_global_y = (v_cnt >> 2) + (my_world_y - 45);        // 假設中心在240(120*2)
     wire is_out_of_map = (map_global_x >= MAP_WIDTH) || (map_global_y >= MAP_HEIGHT);
 
     always @(*) begin
         if (is_out_of_map) addr_map = 0;
         else addr_map = (map_global_y * 320) + map_global_x;
     end
-
+    // --- B. 小地圖位址計算 (Port B) ---
+    reg [16:0] addr_minimap;
+    wire [11:0] data_map_mini;
+    // 1. 還原相對地圖座標 (螢幕座標 -> 地圖座標)
+    // 這裡用 h_cnt - 240 (小地圖起始X) 和 v_cnt - 360 (小地圖起始Y)
+    // 左移 1位 (<<1) 代表乘以 2，實現 1/2 縮放採樣
+    wire [9:0] mm_read_x = (h_cnt - 240) << 1;
+    wire [9:0] mm_read_y = (v_cnt - 360) << 1;
+    
+    // 2. 計算線性位址 (Row-Major)
+    // 只有在掃描線進入小地圖區域時才計算，節省功耗 (雖非必要但好習慣)
+    always @(*) begin
+        if (is_minimap_area)
+            addr_minimap = (mm_read_y * 320) + mm_read_x;
+        else
+            addr_minimap = 17'd0;
+    end
     wire [3:0] map_color;
-    blk_mem_gen_0 map_ram (.clka(clk_25MHz), .addra(addr_map), .douta(map_color));
+    wire [3:0] map_color_mini;
+    blk_mem_gen_0 map_ram (
+        .clka(clk_25MHz), .addra(addr_map), .douta(map_color),
+        .clkb(clk_25MHz), .addrb(addr_minimap), .doutb(map_color_mini)
+        );
     color_decoder map_color_decoder(.color_index(map_color),  // 從 BRAM 讀出來的 0~5
     .rgb_data(data_map),.is_b(0));
+    color_decoder map_color_mini_decoder(.color_index(map_color_mini),  // 從 BRAM 讀出來的 0~5
+    .rgb_data(data_map_mini),.is_b(0));
 
     // B. 車子位址計算 (Car Address) - True Dual Port
     reg [16:0] addr_car_self;
@@ -129,14 +153,14 @@ module Top (
     // 1. [自己的車] (固定在畫面中心)
     // 螢幕中心 (160, 240), 車寬 75 -> 範圍 X[123, 197], Y[203, 277]
     wire is_self_box = (screen_rel_x >= 123 && screen_rel_x <= 197) && 
-                       (v_cnt >= 203 && v_cnt <= 277);
+                       (v_cnt >= 143 && v_cnt <= 217);
     
     // 計算 Self 旋轉位址
     wire [16:0] calc_addr_self;
     car_addr addr_logic_self (
         .degree(my_degree),
         .pixel_x(screen_rel_x - 10'd123),
-        .pixel_y(v_cnt - 10'd203),
+        .pixel_y(v_cnt - 10'd143),
         .rom_addr(calc_addr_self)
     );
 
@@ -145,7 +169,7 @@ module Top (
     wire signed [12:0] diff_x = (enemy_world_x - my_world_x) <<< 2;
     wire signed [12:0] diff_y = (enemy_world_y - my_world_y) <<< 2;
     wire signed [12:0] enemy_center_x = 160 + diff_x;
-    wire signed [12:0] enemy_center_y = 240 + diff_y;
+    wire signed [12:0] enemy_center_y = 180 + diff_y;
     
     // 敵車判定框 (Box Check)
     wire signed [12:0] screen_x_signed = $signed({1'b0, screen_rel_x}); // 轉成 13-bit signed
@@ -188,12 +212,43 @@ module Top (
     color_decoder car_a_decode(.color_index(car_self_color),.rgb_data(data_car_self),.is_b(!is_left_screen));
     color_decoder car_b_decode(.color_index(car_enemy_color),.rgb_data(data_car_enemy),.is_b(is_left_screen));
     
+    // --- 小地圖邏輯 (Mini-map Logic) ---
+
+    // 2. 將螢幕座標還原回「地圖座標」(反向縮放)
+    // 因為小地圖是 1/2 縮放，所以我們把螢幕上的相對位置 * 2 (左移 1) 
+    // 這樣就可以直接跟 p1_world_x (0~320) 做比較
+    wire [9:0] mm_scan_x = (h_cnt - 240) << 1; 
+    wire [9:0] mm_scan_y = (v_cnt - 360) << 1;
+
+    // 3. 判斷是否為車子的點 (點的大小設為 8x8 的世界座標範圍，約等於小地圖上的 4x4 像素)
+    // 這裡使用簡單的矩形判斷，abs 邏輯
+    wire is_p1_dot = (mm_scan_x >= p1_world_x - 4 && mm_scan_x <= p1_world_x + 4) &&
+                     (mm_scan_y >= p1_world_y - 4 && mm_scan_y <= p1_world_y + 4);
+
+    wire is_p2_dot = (mm_scan_x >= p2_world_x - 4 && mm_scan_x <= p2_world_x + 4) &&
+                     (mm_scan_y >= p2_world_y - 4 && mm_scan_y <= p2_world_y + 4);
+    
+    
     // --- 4. 最終顏色輸出 (Priority Mux) ---
     reg [11:0] final_color;
     
     always @(*) begin
         if (!valid) begin
             final_color = 12'h000; // Blanking
+        end else if (is_hud_separator)begin
+            final_color = SEPARATOR_COLOR;
+        end else if (is_hud_area)begin
+            if (is_minimap_area) begin
+                if (is_p1_dot) 
+                    final_color = 12'hF00; // 紅點 (P1)
+                else if (is_p2_dot) 
+                    final_color = 12'h00F; // 藍點 (P2)
+                else 
+                    final_color = data_map_mini;
+            end else begin
+                // HUD 的其他區域 (非小地圖處)
+                final_color = 12'h444; // HUD 邊框底色
+            end
         end else if (is_separator) begin
             final_color = SEPARATOR_COLOR; // 分割線
         end 
