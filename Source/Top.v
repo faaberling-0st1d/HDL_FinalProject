@@ -58,7 +58,34 @@ module Top (
             else if(left)p1_world_x=p1_world_x-1;   
         end
     end
-    // 3. 遊戲物理引擎 (處理移動、碰撞)
+
+    // 3. Operation Encoder Module
+    // 從鍵盤接收訊息
+    wire [2:0] p1_operation_code;
+    wire       p1_boost;
+    wire       p1_honk;
+    wire [2:0] p2_operation_code;
+    wire       p2_boost;
+    wire       p2_honk;
+    OperationEncoder op_encoder (
+        .clk(clk),
+        .rst(rst),
+
+	    .PS2_DATA(PS2_DATA),
+	    .PS2_CLK(PS2_CLK),
+
+        .state(3'd4), // Current state from the FSM (StateEncoder)
+    
+        .p1_operation_code(p1_operation_code), // Left Cart Direction.
+        .p1_boost(p1_boost),          // Left Cart Speed-up.
+        .p1_honk(p1_honk),           // Left Cart Honk
+
+        .p2_operation_code(p2_operation_code), // Right Cart Direction.
+        .p2_boost(p2_boost),          // Right Cart Speed-up
+        .p2_honk(p2_honk)            // Right Cart Honk
+    );
+    
+    // 4. 遊戲物理引擎 (處理移動、碰撞)
    /* PhysicsEngine engine (
         .clk(clk), .rst(rst),
         //待完成

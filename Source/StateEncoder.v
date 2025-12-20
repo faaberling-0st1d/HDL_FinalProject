@@ -6,7 +6,7 @@ module StateEncoder (
     input setting_btn, // Game Setting Button
     input pause_btn,   // Game Pause Button (for state COUNTDOWN & RACING)
 
-    input is_sync,     // Whether two FPGAs are connected or not. (先保留，不過目前改單人)
+    // input is_sync,     // Whether two FPGAs are connected or not. (先取消，目前改單人雙螢幕)
     input is_game_end, // Whether the racing game has ended. (遊戲結束)
 
     output reg [2:0] state
@@ -29,7 +29,7 @@ module StateEncoder (
     // Local parameters
     localparam IDLE      = 3'd0;
     localparam SETTING   = 3'd1;
-    localparam SYNCING   = 3'd2;
+    // localparam SYNCING = 3'd2;
     localparam COUNTDOWN = 3'd3;
     localparam RACING    = 3'd4;
     localparam PAUSE     = 3'd5;
@@ -86,24 +86,12 @@ module StateEncoder (
                 end
             end
 
-            SYNCING: begin
-                if (is_sync) begin
-                    next_state = prev_main_state;
-                end
-            end
-
             COUNTDOWN: begin
                 if (countdown_cnt >= COUNTDOWN_TIME_LIMIT) begin
                     next_countdown_cnt = 28'd0;
                     next_state = RACING;
                 end else begin
                     next_countdown_cnt = countdown_cnt + 1;
-                end
-
-                // Break from COUNTDOWN, enter SYNCING if two boards not connected.
-                if (!is_sync) begin
-                    next_countdown_cnt = 28'd0;
-                    next_state = SYNCING;
                 end
             end
 
