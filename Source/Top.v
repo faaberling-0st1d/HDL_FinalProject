@@ -48,7 +48,7 @@ module Top (
     debounce db1(.pb_debounced(rst_db),   .pb(btn_up),   .clk(clk));
     onepulse op1(.signal(rst_db),   .clk(clk), .op(rst_op));
     always@(posedge test)begin
-        if(rst)begin p1_degree<=0;p1_world_x<=40;p1_world_y<=40;p2_world_x<=80;p2_world_y<=80;p2_degree<=0; end
+        if(rst)begin p1_degree<=0;p1_world_x<=15;p1_world_y<=125;p2_world_x<=25;p2_world_y<=125;p2_degree<=0; end
         else begin 
             if(up)begin
                 p1_world_y=p1_world_y+1;
