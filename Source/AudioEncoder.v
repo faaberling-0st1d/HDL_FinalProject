@@ -1,3 +1,19 @@
+`define SILENCE 32'd50000000
+`define C4      32'd262   // C4 
+`define D4      32'd294   // D4
+`define E4      32'd330   // E4
+`define F4      32'd349   // F4
+`define G4      32'd392   // G4
+`define A4      32'd440   // A4
+`define B4      32'd494   // B4
+`define C5      32'd524   // C5
+`define D5      32'd588   // D5
+`define E5      32'd660   // E5
+`define F5      32'd698   // F5
+`define G5      32'd784   // G5
+`define A5      32'd880   // A5
+`define B5      32'd988   // B5
+
 module AudioEncoder (
     input wire clk,
     input wire rst,
@@ -12,8 +28,8 @@ module AudioEncoder (
 
     /* [Parameters Definition] */
     localparam SECOND = 100_000_000;
-    localparam DIV_LOW = 22'd125000;  // 400 Hz
-    localparam DIV_HIGH = 22'd62500;  // 800 Hz
+    localparam DIV_A4   = 22'd113636; // 440 Hz
+    localparam DIV_A5   = 22'd56818;  // 880 Hz
     localparam DIV_MUTE = 22'h3FFFFF; // Muted (low frequency)
 
     /* [States] */
@@ -38,16 +54,39 @@ module AudioEncoder (
 
     /* [II. Local Counter] */
     reg [28:0] local_cnt;
+    reg        go_audio_effect_played; // 3 (low), 2 (low), 1 (low), GO! (HIGH)
     // reg [31:0] freq_cnt;//
     always @(posedge clk) begin
         if (rst) begin
             local_cnt <= 0;
+            go_audio_effect_played <= 0;
+            
         end else begin
-            if (state == COUNTDOWN || state == RACING) begin
-                if (local_cnt < SECOND) local_cnt <= local_cnt + 1;
-                else                    local_cnt <= 0;
-            end else begin
+            if (start_racing) begin // Reset the counter and the flag!
                 local_cnt <= 0;
+                go_audio_effect_played <= 0;
+
+            end else begin
+                case (state)
+                    COUNTDOWN: begin
+                        if (local_cnt < SECOND) local_cnt <= local_cnt + 1;
+                        else                    local_cnt <= 0;
+                        go_audio_effect_played <= 0;
+                    end
+                    RACING: begin
+                        if (!go_audio_effect_played && local_cnt < SECOND) begin
+                            local_cnt <= local_cnt + 1;
+                            go_audio_effect_played <= 0;
+                        end else begin
+                            go_audio_effect_played <= 1;
+                            local_cnt <= 0;
+                        end
+                    end
+                    default: begin
+                        local_cnt <= 0;
+                        go_audio_effect_played <= 0;
+                    end
+                endcase
             end
         end
     end
@@ -63,13 +102,13 @@ module AudioEncoder (
         if (state == COUNTDOWN) begin
             // Beep in the beginning 0.15 second
             if (local_cnt < 28'd15_000_000) begin
-                target_div = DIV_LOW;
+                target_div = DIV_A4;
                 volume_ctrl = 3'b100;
             end
         end else if (state == RACING) begin
-            if (local_cnt < 28'd60_000_000) begin
-                target_div = DIV_HIGH;
-                volume_ctrl = 3'b111;
+            if (!go_audio_effect_played /* "go" effect yet to be played once */ && local_cnt < 28'd60_000_000) begin
+                target_div = DIV_A5;
+                volume_ctrl = 3'b100;
             end
         end
     end
@@ -81,6 +120,7 @@ module AudioEncoder (
         .clk(clk), .rst(rst),
         .volume(volume_ctrl),
         .note_div_left(target_div),
+        .note_div_right(target_div),
         .audio_left(audio_l),
         .audio_right(audio_r)
     );
@@ -163,9 +203,9 @@ module note_gen(
     // Assign the amplitude of the note
     // Volume is controlled here
     assign audio_left = (note_div_left == 22'd1) ? 16'h0000 : 
-                                (b_clk == 1'b0) ? 16'hE000 : 16'h2000;
+                                (b_clk == 1'b0) ? 16'hE000 >> (16'd8 - volume) : 16'h2000 >> (16'd8 - volume);
     assign audio_right = (note_div_right == 22'd1) ? 16'h0000 : 
-                                (c_clk == 1'b0) ? 16'hE000 : 16'h2000;
+                                (c_clk == 1'b0) ? 16'hE000 >> (16'd8 - volume) : 16'h2000 >> (16'd8 - volume);
 endmodule
 
 module speaker_control(
