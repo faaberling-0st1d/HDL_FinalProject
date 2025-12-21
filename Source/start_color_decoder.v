@@ -3,15 +3,7 @@ module start_color_decoder (
     input  wire  [3:0] start_color_index,
     output reg  [11:0] rgb_data
 );
-    // 根據 Python centroids 數值轉回 Hex
-    0: (11, 14, 11),#green
-    1: (13,13,0),#yellow
-    2: (15, 15, 15),  
-    3: (12, 5, 4),#red
-    4: (7, 11, 10),#greenblue
-    5: (6,12,11),#darkgreen
-    6: (4,3,5),#darkpurple
-    7: (10,12,5)#lime
+   
     always @(*) begin
         case (start_color_index)
             4'd0:    rgb_data = 12'hBEB;
