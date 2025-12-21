@@ -39,15 +39,25 @@ module Top (
 
     // --- 模組實例化 ---
     wire [2:0] state;
+    wire [1:0] countdown_val;
     StateEncoder state_encoder (
         .clk(clk), .rst(rst),
         .start_btn(start_btn),     // Game Starting Button
         .setting_btn(setting_btn), // Game Setting Button
         .pause_btn(pause_btn),     // Game Pause Button (for state COUNTDOWN & RACING)
         .is_game_end(0), // Whether the racing game has ended. (遊戲結束)
-        .state(state)
+        .state(state),
+        .countdown_val(countdown_val)
     );
     assign led = state;
+    /* [States] */
+    localparam IDLE      = 3'd0;
+    localparam SETTING   = 3'd1;
+    // localparam SYNCING = 3'd2;
+    localparam COUNTDOWN = 3'd3;
+    localparam RACING    = 3'd4;
+    localparam PAUSE     = 3'd5;
+    localparam FINISH    = 3'd6;
     
     // 1. 時脈除頻
     clock_divider #(.n(2)) clk25(.clk(clk), .clk_div(clk_25MHz));
@@ -77,9 +87,11 @@ module Top (
         .state(state), // Current state from the FSM (StateEncoder)
     
         .p1_h_code(p1_h_code), .p1_v_code(p1_v_code),
+        .p1_boost(p1_boost),
         .p1_honk(p1_honk),
 
         .p2_h_code(p2_h_code), .p2_v_code(p2_v_code),
+        .p2_boost(p2_boost),
         .p2_honk(p2_honk)
     );
 
@@ -133,6 +145,8 @@ module Top (
     wire is_hud_separator   = (v_cnt == 359 || v_cnt == 360);
     wire is_hud_area = (v_cnt >= 360); // 下方 120 pixel 為介面區
     wire is_minimap_area = (h_cnt >= 240 && h_cnt < 400) && (v_cnt >= 360);
+
+    
     // 動態變數 (根據目前掃描左右邊切換)
     reg [9:0] my_world_x, my_world_y;       // 當前畫面主角
     reg [9:0] enemy_world_x, enemy_world_y; // 當前畫面敵人
@@ -299,6 +313,13 @@ module Top (
     wire is_p2_dot = (mm_scan_x >= p2_world_x - 4 && mm_scan_x <= p2_world_x + 4) &&
                      (mm_scan_y >= p2_world_y - 4 && mm_scan_y <= p2_world_y + 4);
     
+    // --- COUNTDOWN 倒數 --- 
+    wire is_countdown_pixel;
+    NumberSprite num_display (
+        .h_cnt(h_cnt), .v_cnt(v_cnt),
+        .num(countdown_val),
+        .is_pixel(is_countdown_pixel)
+    );
     
     // --- 4. 最終顏色輸出 (Priority Mux) ---
     reg [11:0] final_color;
@@ -306,8 +327,10 @@ module Top (
     always @(*) begin
         if (!valid) begin
             final_color = 12'h000; // Blanking
+
         end else if (is_hud_separator)begin
             final_color = SEPARATOR_COLOR;
+
         end else if (is_hud_area)begin
             if (is_minimap_area) begin
                 if (is_p1_dot) 
@@ -320,10 +343,14 @@ module Top (
                 // HUD 的其他區域 (非小地圖處)
                 final_color = 12'h444; // HUD 邊框底色
             end
+
         end else if (is_separator) begin
             final_color = SEPARATOR_COLOR; // 分割線
-        end 
-        else begin
+        
+        end else if (state == COUNTDOWN && is_countdown_pixel) begin
+            final_color = 12'hFFF;
+
+        end else begin
             // 優先顯示自己的車
             if (is_self_box && data_car_self != TRANSPARENT) 
                 final_color = data_car_self;
