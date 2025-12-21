@@ -1,3 +1,4 @@
+(* use_dsp = "no" *)
 module Top (
     input wire clk,
     input wire rst,
@@ -46,17 +47,17 @@ module Top (
     // 從鍵盤接收訊息
     wire [1:0] p1_h_code;
     wire [1:0] p1_v_code;
-    wire       p1_boost;
-    wire       p1_honk;
+    wire      p1_boost;
+    wire      p1_honk;
     wire [1:0] p2_h_code;
     wire [1:0] p2_v_code;
-    wire       p2_boost;
-    wire       p2_honk;
+    wire      p2_boost;
+    wire      p2_honk;
     OperationEncoder op_encoder (
         .clk(clk), .rst(rst),
 
-	    .PS2_DATA(PS2_DATA),
-	    .PS2_CLK(PS2_CLK),
+        .PS2_DATA(PS2_DATA),
+        .PS2_CLK(PS2_CLK),
 
         .state(3'd4 /* 設為 RACING 先 */), // Current state from the FSM (StateEncoder)
     
@@ -164,8 +165,13 @@ module Top (
 
     always @(*) begin
         if (is_out_of_map) addr_map = 0;
-        else addr_map = (map_global_y * 320) + map_global_x;
+        // -----------------------------------------------------------------
+        // [修正] 強制使用移位運算取代乘法 (320 = 256 + 64)
+        // 原本: addr_map = (map_global_y * 320) + map_global_x;
+        // -----------------------------------------------------------------
+        else addr_map = (map_global_y << 8) + (map_global_y << 6) + map_global_x;
     end
+    
     // --- B. 小地圖位址計算 (Port B) ---
     reg [16:0] addr_minimap;
     wire [11:0] data_map_mini;
@@ -179,10 +185,15 @@ module Top (
     // 只有在掃描線進入小地圖區域時才計算，節省功耗 (雖非必要但好習慣)
     always @(*) begin
         if (is_minimap_area)
-            addr_minimap = (mm_read_y * 320) + mm_read_x;
+            // -----------------------------------------------------------------
+            // [修正] 強制使用移位運算取代乘法 (320 = 256 + 64)
+            // 原本: addr_minimap = (mm_read_y * 320) + mm_read_x;
+            // -----------------------------------------------------------------
+            addr_minimap = (mm_read_y << 8) + (mm_read_y << 6) + mm_read_x;
         else
             addr_minimap = 17'd0;
     end
+
     wire [3:0] map_color;
     wire [3:0] map_color_mini;
     blk_mem_gen_0 map_ram (
@@ -230,7 +241,7 @@ module Top (
     wire signed [12:0] car_bottom = enemy_center_y + 13'd37;
     // 敵車判定框 (使用 Signed 比較)
    wire is_enemy_box = (screen_x_signed >= car_left) && (screen_x_signed <= car_right) &&
-                        (screen_y_signed >= car_top)  && (screen_y_signed <= car_bottom);
+                         (screen_y_signed >= car_top)  && (screen_y_signed <= car_bottom);
     // 計算 Enemy 旋轉位址
    wire signed [12:0] tex_x_calc = screen_x_signed - car_left;
     wire signed [12:0] tex_y_calc = screen_y_signed - car_top;
@@ -325,74 +336,74 @@ module Top (
 endmodule
 
 module SevenSegment(
-	output reg [6:0] display,
-	output reg [3:0] digit,
-	input wire [15:0] nums,
-	input wire rst,
-	input wire clk
+    output reg [6:0] display,
+    output reg [3:0] digit,
+    input wire [15:0] nums,
+    input wire rst,
+    input wire clk
     );
     
     reg [15:0] clk_divider;
     reg [3:0] display_num;
     
     always @ (posedge clk, posedge rst) begin
-    	if (rst) begin
-    		clk_divider <= 15'b0;
-    	end else begin
-    		clk_divider <= clk_divider + 15'b1;
-    	end
+        if (rst) begin
+            clk_divider <= 15'b0;
+        end else begin
+            clk_divider <= clk_divider + 15'b1;
+        end
     end
     
     always @ (posedge clk_divider[15], posedge rst) begin
-    	if (rst) begin
-    		display_num <= 4'b0000;
-    		digit <= 4'b1111;
-    	end else begin
-    		case (digit)
-    			4'b1110 : begin
-    					display_num <= nums[7:4];
-    					digit <= 4'b1101;
-    				end
-    			4'b1101 : begin
-						display_num <= nums[11:8];
-						digit <= 4'b1011;
-					end
-    			4'b1011 : begin
-						display_num <= nums[15:12];
-						digit <= 4'b0111;
-					end
-    			4'b0111 : begin
-						display_num <= nums[3:0];
-						digit <= 4'b1110;
-					end
-    			default : begin
-						display_num <= nums[3:0];
-						digit <= 4'b1110;
-					end				
-    		endcase
-    	end
+        if (rst) begin
+            display_num <= 4'b0000;
+            digit <= 4'b1111;
+        end else begin
+            case (digit)
+                4'b1110 : begin
+                        display_num <= nums[7:4];
+                        digit <= 4'b1101;
+                    end
+                4'b1101 : begin
+                        display_num <= nums[11:8];
+                        digit <= 4'b1011;
+                    end
+                4'b1011 : begin
+                        display_num <= nums[15:12];
+                        digit <= 4'b0111;
+                    end
+                4'b0111 : begin
+                        display_num <= nums[3:0];
+                        digit <= 4'b1110;
+                    end
+                default : begin
+                        display_num <= nums[3:0];
+                        digit <= 4'b1110;
+                    end             
+            endcase
+        end
     end
     
     always @ (*) begin
-    	case (display_num)
-    		0  : display = 7'b1000000; // 0000 (0)
-			1  : display = 7'b1111001; // 0001 (1)                                             
-			2  : display = 7'b0100100; // 0010 (2)                                            
-			3  : display = 7'b0110000; // 0011 (3)                                         
-			4  : display = 7'b0011001; // 0100 (4)                                           
-			5  : display = 7'b0010010; // 0101 (5)                                           
-			6  : display = 7'b0000010; // 0110 (6)
-			7  : display = 7'b1111000; // 0111 (7)
-			8  : display = 7'b0000000; // 1000 (8)
-			9  : display = 7'b0010000; // 1001 (9)
+        case (display_num)
+            0  : display = 7'b1000000; // 0000 (0)
+            1  : display = 7'b1111001; // 0001 (1)                                       
+            2  : display = 7'b0100100; // 0010 (2)                                        
+            3  : display = 7'b0110000; // 0011 (3)                                 
+            4  : display = 7'b0011001; // 0100 (4)                                   
+            5  : display = 7'b0010010; // 0101 (5)                                   
+            6  : display = 7'b0000010; // 0110 (6)
+            7  : display = 7'b1111000; // 0111 (7)
+            8  : display = 7'b0000000; // 1000 (8)
+            9  : display = 7'b0010000; // 1001 (9)
             10 : display = 7'b0001000; // 1010 (A)
             11 : display = 7'b0000011; // 1011 (b)
             12 : display = 7'b1000110; // 1100 (C)
             13 : display = 7'b0100001; // 1101 (d)
             14 : display = 7'b0000110; // 1110 (E)
             15 : display = 7'b0001110; // 1111 (F)
-			default : display = 7'b1111111;
-    	endcase
+            default : display = 7'b1111111;
+        endcase
     end
     
 endmodule
