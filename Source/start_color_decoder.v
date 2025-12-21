@@ -1,9 +1,6 @@
 // Color Decoder for Start state
-// 顏色編碼：0 = 透明, 1 = 紅, 2 = 深紅, 3 = 黃, 4 = 黑,
-//          5 = 灰,   6 = 綠, 7 = 土黃, 8 = 白, 9 = 亮綠, 10 = 淺灰
 module start_color_decoder (
     input  wire  [3:0] start_color_index,
-    input  wire        is_b,
     output reg  [11:0] rgb_data
 );
     // 根據 Python centroids 數值轉回 Hex
@@ -15,15 +12,15 @@ module start_color_decoder (
     // 0: 透明 -> 這裡暫時設為純黑或特定顏色(如粉紅)來讓 VGA 模組做去背
     always @(*) begin
         case (start_color_index)
-            4'd0:    rgb_data = 12'h000; // 透明 (Transparent)，通常輸出全黑，由 VGA 邏輯決定不顯示
-            4'd1:    rgb_data = is_b ? 12'h8DF /* 淺藍 */ : 12'hD42; // 紅 (Centroid: 13,4,2)
-            4'd2:    rgb_data = is_b ? 12'h009 : 12'h921; // 深紅 (Centroid: 9,2,1)
-            4'd3:    rgb_data = 12'hFF9; // 黃 (Centroid: 15,15,9)
-            4'd4:    rgb_data = 12'h210; // 黑/深雜訊 (Centroid: 2,1,0)
-            4'd5:    rgb_data = 12'h778; // 灰 (Centroid: 7,7,8)
-            4'd6:    rgb_data = 12'h6B4; // 綠
-            4'd7:    rgb_data = 12'hDD0; //土黃
-            4'd8:    rgb_data = 12'hFFF; // 白
+            4'd0:    rgb_data = 12'h000;
+            4'd1:    rgb_data = 12'h
+            4'd2:    rgb_data = 12'h
+            4'd3:    rgb_data = 12'hFF9; 
+            4'd4:    rgb_data = 12'h210; 
+            4'd5:    rgb_data = 12'h778; 
+            4'd6:    rgb_data = 12'h6B4; 
+            4'd7:    rgb_data = 12'hDD0;
+            4'd8:    rgb_data = 12'hFFF; 
             4'd9:    rgb_data = 12'h0F0;
             4'd10:   rgb_data = 12'hBBB;
             default: rgb_data = 12'hF0F; // 錯誤處理 (紫色)，若出現預期外的數值方便除錯

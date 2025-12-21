@@ -390,10 +390,9 @@ module Top (
         .addra(lobby_addr),
         .douta(lobby_code)
     );
-    color_decoder lobby_decoder(
+    start_color_decoder lobby_decoder(
         .color_index(lobby_code),
-        .rgb_data(lobby_data),
-        .is_b(0)
+        .rgb_data(lobby_data)
     );
     //最終顏色輸出
     reg [11:0] final_color;
