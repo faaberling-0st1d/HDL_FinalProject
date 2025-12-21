@@ -142,7 +142,7 @@ module PhysicsEngine #(
         if(speed_delay == 0) begin
             if (v_code == 2'd1 /*UP*/) begin
                 if (boost && speed < 15)      next_speed = speed + 1;
-                else if (!boost && speed < 6) next_speed = speed + 1;
+                else if (!boost && speed < 8) next_speed = speed + 1;
             end else if (v_code == 2'd2 /*DOWN*/) begin
                 if (speed > -4) next_speed = speed - 1;
             end else begin
@@ -153,8 +153,8 @@ module PhysicsEngine #(
         
         // 計算位置
         if (speed != 0) begin
-            next_pos_x_accum = pos_x_accum + ((speed * unit_x)>>>2);
-            next_pos_y_accum = pos_y_accum + ((speed * unit_y)>>>2);
+            next_pos_x_accum = pos_x_accum + ((speed * unit_x)>>>1);
+            next_pos_y_accum = pos_y_accum + ((speed * unit_y)>>>1);
         end
     end
 
