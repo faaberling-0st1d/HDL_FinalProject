@@ -74,25 +74,27 @@ module PhysicsEngine #(
     
     // Debug 用
     always @(posedge clk) speed_out <= speed;
-
+    
+    
+    reg [2:0] speed_delay; 
     // --- 組合邏輯: 計算下一幀的速度與位置 ---
     always @(*) begin
         // A. 速度計算 (加上 Boost 邏輯)
         next_speed = speed;
         // 定義最大速度
         // 若 boost 按下，最大速設為 15，否則 8
-        
-        if (v_code == 2'd1 /*UP*/) begin
-            if (boost && speed < 15)      next_speed = speed + 1;
-            else if (!boost && speed < 8) next_speed = speed + 1;
-        end else if (v_code == 2'd2 /*DOWN*/) begin
-            if (speed > -4) next_speed = speed - 1;
-        end else begin
-            // 摩擦力
-            if (speed > 0) next_speed = speed - 1;
-            else if (speed < 0) next_speed = speed + 1;
+        if(speed_delay==0)begin
+            if (v_code == 2'd1 /*UP*/) begin
+                if (boost && speed < 15)      next_speed = speed + 1;
+                else if (!boost && speed < 8) next_speed = speed + 1;
+            end else if (v_code == 2'd2 /*DOWN*/) begin
+                if (speed > -4) next_speed = speed - 1;
+            end else begin
+                // 摩擦力
+                if (speed > 0) next_speed = speed - 1;
+                else if (speed < 0) next_speed = speed + 1;
+            end
         end
-
         // B. 位置計算
         next_pos_x_accum = pos_x_accum;
         next_pos_y_accum = pos_y_accum;
@@ -113,11 +115,13 @@ module PhysicsEngine #(
             pos_x_accum <= START_X << 10;
             pos_y_accum <= START_Y << 10;
             speed <= 0;
+            speed_delay <= 0;
         end else if (game_tick && state == 3'd4) begin
             // 關鍵：只在 Game Tick 更新物理狀態
             pos_x_accum <= next_pos_x_accum;
             pos_y_accum <= next_pos_y_accum;
             speed <= next_speed;
+            speed_delay <= speed_delay + 1; 
         end
     end
 
