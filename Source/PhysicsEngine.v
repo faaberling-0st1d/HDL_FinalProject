@@ -5,13 +5,11 @@ module PhysicsEngine #(
     
     parameter MAP_W = 10'd320,
     parameter MAP_H = 10'd240,
-    // [優化] 因為用 Shift 運算，這裡預設 Offset 為 2 (左移 1 位)
-    // 如果要改成 4，請在程式碼中的 shift 改成 << 2
     parameter OFFSET_DIST = 10'd2, 
     
     // [優化] 改用矩形半寬 (Box Half-Width) 代替圓半徑平方
     // 原本半徑是 3 (平方9)，這裡設 3 代表判定框為 6x6
-    parameter COLLISION_SIZE = 10'd9 
+    parameter COLLISION_SIZE = 10'd3 
 )(
     input clk,
     input rst,
@@ -104,19 +102,23 @@ module PhysicsEngine #(
         end
     end
     // --- 3. 碰撞檢測 (Box Collision) ---
-    function check_hit_func;
+    // [優化] 使用矩形碰撞取代圓形，移除所有乘法器
+    function check_hit_box;
         input [9:0] x1, y1, x2, y2;
-        reg signed [10:0] dx, dy;reg [21:0] d_sq;begin
-            dx = $signed({1'b0, x1}) - $signed({1'b0, x2});
-            dy = $signed({1'b0, y1}) - $signed({1'b0, y2});
-            d_sq = (dx*dx) + (dy*dy);
-            check_hit_func = (d_sq < (COLLISION_SIZE<<<2));
+        reg [9:0] abs_dx, abs_dy;
+        begin
+            abs_dx = (x1 > x2) ? (x1 - x2) : (x2 - x1);
+            abs_dy = (y1 > y2) ? (y1 - y2) : (y2 - y1);
+            // 兩車距離小於 COLLISION_SIZE * 2 (兩邊半徑和)
+            check_hit_box = (abs_dx < (COLLISION_SIZE << 1)) && (abs_dy < (COLLISION_SIZE << 1));
         end
     endfunction
-    wire hit_ff = check_hit_func(my_f_x, my_f_y, other_f_x, other_f_y);
-    wire hit_fr = check_hit_func(my_f_x, my_f_y, other_r_x, other_r_y);
-    wire hit_rf = check_hit_func(my_r_x, my_r_y, other_f_x, other_f_y);
-    wire hit_rr = check_hit_func(my_r_x, my_r_y, other_r_x, other_r_y);
+
+    wire hit_ff = check_hit_box(my_f_x, my_f_y, other_f_x, other_f_y);
+    wire hit_fr = check_hit_box(my_f_x, my_f_y, other_r_x, other_r_y);
+    wire hit_rf = check_hit_box(my_r_x, my_r_y, other_f_x, other_f_y);
+    wire hit_rr = check_hit_box(my_r_x, my_r_y, other_r_x, other_r_y);
+    
     wire is_car_hit = (hit_ff | hit_fr | hit_rf | hit_rr);
 
     wire wall_hit_f = (my_f_x < 10 || my_f_x > MAP_W - 10 || my_f_y < 10 || my_f_y > MAP_H - 10);

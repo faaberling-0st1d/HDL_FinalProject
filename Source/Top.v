@@ -352,7 +352,7 @@ module Top (
             // (距離 <= 外徑) AND (距離 > 內徑) -> 形成空心邊框
             // 這裡設定：在 3x3 範圍內，但排除掉中心的 1x1 範圍，形成一個稍微厚一點的框
             is_on_box = (abs_dx <= DBG_BOX_SIZE && abs_dy <= DBG_BOX_SIZE) && 
-                        (abs_dx > (DBG_BOX_SIZE - 2) || abs_dy > (DBG_BOX_SIZE - 2));
+                        (abs_dx > (DBG_BOX_SIZE - 1) || abs_dy > (DBG_BOX_SIZE - 1));
         end
     endfunction
 
