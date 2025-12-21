@@ -13,7 +13,7 @@ module PhysicsEngine #(
     input [2:0] state,
     input [1:0] h_code, 
     input [1:0] v_code, 
-    input boost,        
+    input boost,       
     
     // 對手碰撞圓
     input [9:0] other_f_x, input [9:0] other_f_y, 
@@ -26,7 +26,8 @@ module PhysicsEngine #(
     output wire [9:0] pos_x, 
     output wire [9:0] pos_y,
     output reg  [3:0] angle_idx, 
-    output reg  [9:0] speed_out
+    output reg  [9:0] speed_out,
+    output [1:0] flag 
 );
     localparam HIT_COOLDOWN_TIME = 6'd30;
     // 60Hz Game Tick
@@ -49,6 +50,7 @@ module PhysicsEngine #(
             internal_angle <= 6'd0;
             angle_idx <= 0; 
             turn_delay <= 0;
+            flag <= 2'd0;
         end else if (game_tick && state == 3'd4) begin
             if (h_code == 2'd1) begin // Left
                 if (turn_delay == 0) begin
