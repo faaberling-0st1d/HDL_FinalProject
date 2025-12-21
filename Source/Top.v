@@ -80,6 +80,8 @@ module Top (
     wire [1:0] p2_v_code;
     wire       p2_boost;
     wire       p2_honk;
+    wire [1:0] p1_flag_order;
+    wire [1:0] p2_flag_order;
     OperationEncoder op_encoder (
         .clk(clk), .rst(rst),
 
@@ -306,7 +308,6 @@ module Top (
     // --- 小地圖邏輯 (Mini-map Logic) ---
 
     // 2. 將螢幕座標還原回「地圖座標」(反向縮放)
-    // 因為小地圖是 1/2 縮放，所以我們把螢幕上的相對位置 * 2 (左移 1) 
     // 這樣就可以直接跟 p1_world_x (0~320) 做比較
     wire [9:0] mm_scan_x = (h_cnt - 240) << 1; 
     wire [9:0] mm_scan_y = (v_cnt - 360) << 1;
@@ -336,8 +337,8 @@ module Top (
     
     // 為了節省資源，我們只計算圓框 (Hollow Circle)
     // 半徑平方判定: 18^2 = 324。我們畫 16^2 ~ 19^2 之間的像素，形成一個圈
-    localparam DBG_R_MIN_SQ = 10'd16;
-    localparam DBG_R_MAX_SQ = 10'd25;
+    localparam DBG_R_MIN_SQ = 10'd4;
+    localparam DBG_R_MAX_SQ = 10'd9;
 
     // 定義一個函數來檢查「當前像素是否在圓環上」
     function is_on_circle;
@@ -361,6 +362,31 @@ module Top (
      // 判定當前像素是否是 Debug 線條
     wire is_debug_pixel = (p1_f_draw || p1_r_draw || p2_f_draw || p2_r_draw);
 
+   
+    wire [13:0] flag_addr;
+    wire        flag_active;
+    wire [3:0]  flag_code;
+    wire [11:0] flag_data;   // 從 BRAM 讀出來的 RGB
+    flag_addr flag_gen (
+        .h_cnt     (h_cnt),
+        .v_cnt     (v_cnt),
+        .p1_order  (p1_flag_order), // 接你的暫存器
+        .p2_order  (p2_flag_order), // 接你的暫存器
+        .mem_addr  (flag_addr),
+        .is_active (flag_active)
+    );
+
+    blk_mem_gen_2 flag_ram (
+        .clka  (clk_25MHz),           // 使用跟 VGA 同樣的時脈
+        .addra (flag_addr),   // 接上算出來的位址
+        .douta (flag_code)    // 讀出來的資料
+    );
+    color_decoder flag_decoder(
+        .color_index(flag_code),
+        .rgb_data(flag_data),
+        .is_b(0)
+    );
+
     //最終顏色輸出
     reg [11:0] final_color;
     
@@ -379,8 +405,9 @@ module Top (
                     final_color = 12'h00F; // 藍點 (P2)
                 else 
                     final_color = data_map_mini;
+            end else if(flag_active)begin
+                    final_color = flag_data;
             end else begin
-                // HUD 的其他區域 (非小地圖處)
                 final_color = 12'h444; // HUD 邊框底色
             end
 

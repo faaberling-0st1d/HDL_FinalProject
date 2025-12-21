@@ -5,8 +5,8 @@ module PhysicsEngine #(
     
     parameter MAP_W = 10'd320,   // 地圖寬
     parameter MAP_H = 10'd240,   // 地圖高
-    parameter OFFSET_DIST = 10'd5, // 圓心距離車中心的偏移量
-    parameter COLLISION_RSQ = 10'd25
+    parameter OFFSET_DIST = 10'd2, // 圓心距離車中心的偏移量
+    parameter COLLISION_RSQ = 10'd9
 )(
     input clk,
     input rst,
@@ -108,7 +108,7 @@ module PhysicsEngine #(
             dx = $signed({1'b0, x1}) - $signed({1'b0, x2});
             dy = $signed({1'b0, y1}) - $signed({1'b0, y2});
             d_sq = (dx*dx) + (dy*dy);
-            check_hit_func = (d_sq < COLLISION_RSQ);
+            check_hit_func = (d_sq < (COLLISION_RSQ<<<2));
         end
     endfunction
 
