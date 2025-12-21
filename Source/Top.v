@@ -81,7 +81,7 @@ module Top (
 
         .pos_x(p1_world_x), .pos_y(p1_world_y),
         .angle_idx(p1_degree),
-
+        .other_x(p2_world_x),.other_y(p2_world_y)
         .speed_out(p1_speed)
     );
 
@@ -96,7 +96,7 @@ module Top (
         .h_code(p2_h_code), .v_code(p2_v_code), // From OperationEncoder Module
         .pos_x(p2_world_x), .pos_y(p2_world_y),
         .angle_idx(p2_degree),
-
+        .other_x(p1_world_x),.other_y(p1_world_y)
         .speed_out(p2_speed)
     );
 
