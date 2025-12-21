@@ -97,8 +97,8 @@ module PhysicsEngine #(
     // --- 3. 碰撞檢測邏輯 (Combinational) ---
     
     // A. 撞牆檢測 (Wall Collision) - 檢查前圓或後圓是否出界
-    wire wall_hit_f = (my_f_x-10 < 0 || my_f_x+10 > MAP_W || my_f_y-10 < 0 || my_f_y+10 > MAP_H);
-    wire wall_hit_r = (my_r_x-10 < 0 || my_r_x+10 > MAP_W || my_r_y-10 < 0 || my_r_y+10 > MAP_H);
+    wire wall_hit_f = (my_f_x < 10 || my_f_x+10 > MAP_W || my_f_y < 10 || my_f_y+10 > MAP_H);
+    wire wall_hit_r = (my_r_x < 10 || my_r_x+10 > MAP_W || my_r_y < 10 || my_r_y+10 > MAP_H);
     wire is_wall_hit = wall_hit_f | wall_hit_r;
 
     // B. 撞車檢測 (Car Collision) - 雙圓形交叉比對
@@ -192,13 +192,13 @@ module PhysicsEngine #(
                 speed_delay <= 0;
             end
             else if (is_wall_hit) begin
-                if (speed >= 0) speed <= -10'd5;
-                else           speed <= 10'd5;
+                if (speed >= 0) speed <= -10'd2;
+                else           speed <= 10'd2;
                 pos_x_accum <= pos_x_accum; // 停在原地 (不更新位置)
                 pos_y_accum <= pos_y_accum;
                 speed_delay <= 0;
                 // 撞牆可以不設 CD，或者設一個很短的 CD (例如 2) 防止摩擦卡住
-                hit_cd_cnt <= HIT_COOLDOWN_TIME; 
+                hit_cd_cnt <= 6'd20; 
             end
             
             // 情況 4: 正常行駛
