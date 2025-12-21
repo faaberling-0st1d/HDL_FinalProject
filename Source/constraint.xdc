@@ -179,18 +179,18 @@ set_property PACKAGE_PIN U17 [get_ports pause_btn]
 
 
 ## Pmod Header JB
-## Sch name = JB1
-# set_property PACKAGE_PIN A14 [get_ports {sonic_trig[0]}]
-#    set_property IOSTANDARD LVCMOS33 [get_ports {sonic_trig[0]}]
-## Sch name = JB2
-# set_property PACKAGE_PIN A16 [get_ports {sonic_echo[0]}]
-#    set_property IOSTANDARD LVCMOS33 [get_ports {sonic_echo[0]}]
-## Sch name = JB3
-## set_property PACKAGE_PIN B15 [get_ports {trig}]
-##    set_property IOSTANDARD LVCMOS33 [get_ports {trig}]
-## Sch name = JB4
-## set_property PACKAGE_PIN B16 [get_ports {echo}]
-##    set_property IOSTANDARD LVCMOS33 [get_ports {echo}]
+# Sch name = JB1
+set_property PACKAGE_PIN A14 [get_ports {audio_mclk}]
+   set_property IOSTANDARD LVCMOS33 [get_ports {audio_mclk}]
+# Sch name = JB2
+set_property PACKAGE_PIN A16 [get_ports {audio_lrck}]
+   set_property IOSTANDARD LVCMOS33 [get_ports {audio_lrck}]
+# Sch name = JB3
+set_property PACKAGE_PIN B15 [get_ports {audio_sck}]
+   set_property IOSTANDARD LVCMOS33 [get_ports {audio_sck}]
+# Sch name = JB4
+set_property PACKAGE_PIN B16 [get_ports {audio_sdin}]
+   set_property IOSTANDARD LVCMOS33 [get_ports {audio_sdin}]
 ## Sch name = JB7
 # set_property PACKAGE_PIN A15 [get_ports {motor_cw[0]}]
 #    set_property IOSTANDARD LVCMOS33 [get_ports {motor_cw[0]}]

@@ -2,6 +2,8 @@
 SampleCode_VGA/
 # Ignore ip folder (IP for keyboard)
 ip/
+# Ignore SampleCode_Audio folder
+SampleCode_Audio/
 
 # Ignore all the .gif, .png files
 *.gif

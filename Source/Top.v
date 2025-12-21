@@ -18,8 +18,13 @@ module Top (
     output wire [3:0] digit,
     // LED 輸出
     output wire [2:0] led,
-    //debug switch
-    input sw
+    // Debug switch Input
+    input wire sw,
+    // PMOD Audio 模組
+    output wire audio_mclk,
+    output wire audio_lrck,
+    output wire audio_sck,
+    output wire audio_sdin
 );
     // --- 參數設定 ---
     parameter MAP_BASE_ADDR   = 17'd90001; // 地圖起始位址
@@ -382,7 +387,7 @@ module Top (
         .rgb_data(flag_data),
         .is_b(0)
     );
-    wire [16:0] lobby_addr = h_cnt + (v_cnt << 8) + (v_cnt << 6);
+    wire [16:0] lobby_addr = ((v_cnt - 120) << 8) + ((v_cnt - 120) << 6) + (h_cnt-160);
     wire [3:0] lobby_code;
     wire [11:0] lobby_data;
     blk_mem_gen_3 lobby_ram(
@@ -452,6 +457,16 @@ module Top (
     assign vgaRed   = final_color[11:8];
     assign vgaGreen = final_color[7:4];
     assign vgaBlue  = final_color[3:0];
+
+    /* [C. PMOD Audio] */
+    AudioEncoder audio (
+        .clk(clk), .rst(rst),
+        .state(state),
+        .audio_mclk(audio_mclk),
+        .audio_lrck(audio_lrck),
+        .audio_sck(audio_sck),
+        .audio_sdin(audio_sdin)
+    );
 
 endmodule
 
