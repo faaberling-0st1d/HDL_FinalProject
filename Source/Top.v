@@ -1,4 +1,3 @@
-(* use_dsp = "no" *)
 module Top (
     input wire clk,
     input wire rst,
@@ -29,7 +28,7 @@ module Top (
     // 從 Engine 來的資訊
     wire [9:0] p1_world_x, p1_world_y;
     wire [9:0] p2_world_x, p2_world_y;
-    wire [8:0] p1_degree,  p2_degree;
+    wire [3:0] p1_degree,  p2_degree;
 
 
     // --- 模組實例化 ---
@@ -62,11 +61,9 @@ module Top (
         .state(3'd4 /* 設為 RACING 先 */), // Current state from the FSM (StateEncoder)
     
         .p1_h_code(p1_h_code), .p1_v_code(p1_v_code),
-        .p1_boost(p1_boost),
         .p1_honk(p1_honk),
 
         .p2_h_code(p2_h_code), .p2_v_code(p2_v_code),
-        .p2_boost(p2_boost),
         .p2_honk(p2_honk)
     );
 
@@ -80,11 +77,10 @@ module Top (
 
         .state(3'd4 /* 設為 RACING 先 */), // From StateEncoder
 
-        .h_code(p1_h_code), .v_code(p1_v_code), // From OperationEncoder Module
-        .boost(p1_boost),                   // From OperationEncoder Module
+        .h_code(p1_h_code), .v_code(p1_v_code), // From OperationEncoder Module               // From OperationEncoder Module
 
         .pos_x(p1_world_x), .pos_y(p1_world_y),
-        .angle(p1_degree),
+        .angle_idx(p1_degree),
 
         .speed_out(p1_speed)
     );
@@ -98,10 +94,8 @@ module Top (
         .state(3'd4 /* 設為 RACING 先 */), // From StateEncoder
 
         .h_code(p2_h_code), .v_code(p2_v_code), // From OperationEncoder Module
-        .boost(p2_boost),                   // From OperationEncoder Module
-
         .pos_x(p2_world_x), .pos_y(p2_world_y),
-        .angle(p2_degree),
+        .angle_idx(p2_degree),
 
         .speed_out(p2_speed)
     );
@@ -126,7 +120,7 @@ module Top (
     // 動態變數 (根據目前掃描左右邊切換)
     reg [9:0] my_world_x, my_world_y;       // 當前畫面主角
     reg [9:0] enemy_world_x, enemy_world_y; // 當前畫面敵人
-    reg [8:0] my_degree, enemy_degree;
+    reg [3:0] my_degree, enemy_degree;
     reg [9:0] screen_rel_x;                 // 相對螢幕 X (0~319)
 
     // 切換視角邏輯 (Multiplexer)
