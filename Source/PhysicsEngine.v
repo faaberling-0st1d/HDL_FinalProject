@@ -6,8 +6,8 @@ module PhysicsEngine #(
     // --- [新增] 碰撞參數 ---
     parameter MAP_W = 10'd320,   // 地圖寬
     parameter MAP_H = 10'd240,   // 地圖高
-    parameter OFFSET_DIST = 10'd15, // 圓心距離車中心的偏移量 (車長/4)
-    parameter COLLISION_RSQ = 10'd36
+    parameter OFFSET_DIST = 10'd5, // 圓心距離車中心的偏移量 (車長/4)
+    parameter COLLISION_RSQ = 10'd25
 )(
     input clk,
     input rst,
@@ -97,9 +97,8 @@ module PhysicsEngine #(
     // --- 3. 碰撞檢測邏輯 (Combinational) ---
     
     // A. 撞牆檢測 (Wall Collision) - 檢查前圓或後圓是否出界
-    // 邊界留一點緩衝 (例如 10 pixel)
-    wire wall_hit_f = (my_f_x < 0 || my_f_x > MAP_W || my_f_y < 0 || my_f_y > MAP_H);
-    wire wall_hit_r = (my_r_x < 0 || my_r_x > MAP_W || my_r_y < 0 || my_r_y > MAP_H);
+    wire wall_hit_f = (my_f_x-10 < 0 || my_f_x+10 > MAP_W || my_f_y-10 < 0 || my_f_y+10 > MAP_H);
+    wire wall_hit_r = (my_r_x-10 < 0 || my_r_x+10 > MAP_W || my_r_y-10 < 0 || my_r_y+10 > MAP_H);
     wire is_wall_hit = wall_hit_f | wall_hit_r;
 
     // B. 撞車檢測 (Car Collision) - 雙圓形交叉比對
@@ -180,8 +179,14 @@ module PhysicsEngine #(
             end
             else if (is_car_hit) begin
                 hit_cd_cnt <= HIT_COOLDOWN_TIME; 
-                if (speed >= 0) speed <= -10'd3;
-                else speed <= 10'd3;
+                if(hit_rf)begin
+                    if (speed >= 0) speed <= speed+10'd3;
+                    else speed <= speed-10'd3;
+                end
+                else begin
+                    if (speed >= 0) speed <= -10'd3;
+                    else speed <= 10'd3;
+                end
                 pos_x_accum <= pos_x_accum; 
                 pos_y_accum <= pos_y_accum;
                 speed_delay <= 0;

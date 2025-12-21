@@ -338,8 +338,8 @@ module Top (
     
     // 為了節省資源，我們只計算圓框 (Hollow Circle)
     // 半徑平方判定: 18^2 = 324。我們畫 16^2 ~ 19^2 之間的像素，形成一個圈
-    localparam DBG_R_MIN_SQ = 10'd256; // 16^2
-    localparam DBG_R_MAX_SQ = 10'd400; // 20^2 (你的碰撞半徑)
+    localparam DBG_R_MIN_SQ = 10'd16;
+    localparam DBG_R_MAX_SQ = 10'd25;
 
     // 定義一個函數來檢查「當前像素是否在圓環上」
     function is_on_circle;
