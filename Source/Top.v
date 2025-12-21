@@ -98,6 +98,8 @@ module Top (
     // 4. 遊戲物理引擎 (處理移動、碰撞)
     // p1 (左邊)
     wire [9:0] p1_speed;
+    wire [9:0] P1_f_x; wire [9:0] P1_f_y; wire [9:0] P1_r_x; wire [9:0] P1_r_y;
+    wire [9:0] P2_f_x;wire [9:0] P2_f_y; wire [9:0] P2_r_x;wire [9:0] P2_r_y;
     PhysicsEngine #(
         .START_X(8'd15), .START_Y(8'd125)
     ) p1_engine (
@@ -109,7 +111,8 @@ module Top (
 
         .pos_x(p1_world_x), .pos_y(p1_world_y),
         .angle_idx(p1_degree),
-
+        .other_f_x(P2_f_x),.other_f_y(P2_f_y),.other_r_x(P2_r_x),.other_r_y(P2_r_y),
+        .my_f_x(P1_f_x),.my_f_y(P1_f_y),.my_r_x(P1_r_x),.my_r_y(P1_r_y),
         .speed_out(p1_speed)
     );
 
@@ -124,7 +127,8 @@ module Top (
         .h_code(p2_h_code), .v_code(p2_v_code), // From OperationEncoder Module
         .pos_x(p2_world_x), .pos_y(p2_world_y),
         .angle_idx(p2_degree),
-        
+        .other_f_x(P1_f_x),.other_f_y(P1_f_y),.other_r_x(P1_r_x),.other_r_y(P1_r_y),
+        .my_f_x(P2_f_x),.my_f_y(P2_f_y),.my_r_x(P2_r_x),.my_r_y(P2_r_y),
         .speed_out(p2_speed)
     );
 

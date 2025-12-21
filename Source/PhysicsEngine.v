@@ -6,8 +6,8 @@ module PhysicsEngine #(
     // --- [新增] 碰撞參數 ---
     parameter MAP_W = 10'd320,   // 地圖寬
     parameter MAP_H = 10'd240,   // 地圖高
-    parameter OFFSET_DIST = 10'd5, // 圓心距離車中心的偏移量 (車長/4)
-    parameter COLLISION_RSQ = 10'd100
+    parameter OFFSET_DIST = 10'd15, // 圓心距離車中心的偏移量 (車長/4)
+    parameter COLLISION_RSQ = 10'd36
 )(
     input clk,
     input rst,
@@ -29,7 +29,7 @@ module PhysicsEngine #(
     output reg  [3:0] angle_idx, 
     output reg  [9:0] speed_out
 );
-
+    localparam HIT_COOLDOWN_TIME = 6'd30;
     // --- 0. 產生 60Hz 的遊戲節拍 (Game Tick) ---
     reg [20:0] tick_cnt;
     wire game_tick;
@@ -126,6 +126,8 @@ module PhysicsEngine #(
     // --- 4. 座標與速度更新邏輯 ---
     reg signed [19:0] pos_x_accum, next_pos_x_accum;
     reg signed [19:0] pos_y_accum, next_pos_y_accum;
+    
+    reg [5:0] hit_cd_cnt;
     reg [2:0] speed_delay; 
 
     assign pos_x = pos_x_accum[19:10]; 
@@ -133,84 +135,76 @@ module PhysicsEngine #(
     
     always @(posedge clk) speed_out <= speed;
 
+   // --- Combinational: 只負責算「正常情況下」的下一幀數值 ---
     always @(*) begin
         // 預設保持原值
         next_speed = speed;
         next_pos_x_accum = pos_x_accum;
         next_pos_y_accum = pos_y_accum;
-        
-        // 1. 優先處理 [撞車] (反彈)
-        if (is_car_hit) begin
-            // 速度反轉 (Knockback)
-            if (speed > 0) next_speed = -10'd8; 
-            else           next_speed = 10'd8;
-            
-            // 位置強制推回 (Anti-sticking)
-            // 往當前向量的反方向推，推開距離約為速度的 4 倍
-            next_pos_x_accum = pos_x_accum - unit_x; 
-            next_pos_y_accum = pos_y_accum - unit_y;
-        end 
-        // 2. 處理 [撞牆] (停止/微反彈)
-        else if (is_wall_hit) begin
-            // 碰到牆壁，速度歸零 (或者您可以設一個小的反彈值如 -2)
-            next_speed = 10'd0;
-            // 位置保持不變 (卡在牆邊，不允許繼續前進)
-            next_pos_x_accum = pos_x_accum;
-            next_pos_y_accum = pos_y_accum;
-            
-            // 如果想允許「倒車離開牆壁」，需要判斷按鍵方向
-            // 如果按下 Down 且撞牆，允許後退速度 (這部分邏輯較複雜，暫時先設為停止)
-            if (v_code == 2'd2) next_speed = -10'd2; 
-        end 
-        // 3. 正常移動邏輯
-        else begin
-            // A. 速度計算
-            // 注意：如果剛從碰撞恢復，需要立即更新速度，這裡使用 speed_delay 控制加速度
-            if(speed_delay == 0) begin
-                if (v_code == 2'd1 /*UP*/) begin
-                    if (boost && speed < 15)      next_speed = speed + 1;
-                    else if (!boost && speed < 8) next_speed = speed + 1;
-                end else if (v_code == 2'd2 /*DOWN*/) begin
-                    if (speed > -4) next_speed = speed - 1;
-                end else begin
-                    // 摩擦力
-                    if (speed > 0) next_speed = speed - 1;
-                    else if (speed < 0) next_speed = speed + 1;
-                end
-            end
 
-            // B. 位置更新
-            if (speed != 0) begin
-                // [修正] 對齊問題:
-                // unit 是 Q8, pos_accum 是 Q10, 相差 2 bits
-                // (speed * unit) 是 Q8, 左移 2 位變成 Q10
-                next_pos_x_accum = pos_x_accum + speed * unit_x;
-                next_pos_y_accum = pos_y_accum + speed * unit_y;
+        // 計算摩擦力與加減速 (正常物理)
+        if(speed_delay == 0) begin
+            if (v_code == 2'd1 /*UP*/) begin
+                if (boost && speed < 15)      next_speed = speed + 1;
+                else if (!boost && speed < 8) next_speed = speed + 1;
+            end else if (v_code == 2'd2 /*DOWN*/) begin
+                if (speed > -4) next_speed = speed - 1;
+            end else begin
+                if (speed > 0) next_speed = speed - 1;
+                else if (speed < 0) next_speed = speed + 1;
             end
+        end
+        
+        // 計算位置 (正常移動)
+        if (speed != 0) begin
+            next_pos_x_accum = pos_x_accum + speed * unit_x;
+            next_pos_y_accum = pos_y_accum + speed * unit_y;
         end
     end
 
-    // --- Sequential Logic ---
+    // --- Sequential Logic: 處理狀態更新與碰撞觸發 ---
     always @(posedge clk) begin
         if (rst) begin
             pos_x_accum <= START_X << 10;
             pos_y_accum <= START_Y << 10;
             speed <= 0;
             speed_delay <= 0;
+            hit_cd_cnt <= 0;
         end else if (game_tick && state == 3'd4) begin
+            if (hit_cd_cnt > 0) begin
+                hit_cd_cnt <= hit_cd_cnt - 1;
+                pos_x_accum <= next_pos_x_accum;
+                pos_y_accum <= next_pos_y_accum;
+                speed <= next_speed; 
+                speed_delay <= speed_delay + 1;
+            end
+            else if (is_car_hit) begin
+                hit_cd_cnt <= HIT_COOLDOWN_TIME; 
+                if (speed >= 0) speed <= -10'd3;
+                else speed <= 10'd3;
+                pos_x_accum <= pos_x_accum; 
+                pos_y_accum <= pos_y_accum;
+                speed_delay <= 0;
+            end
+            else if (is_wall_hit) begin
+                if (speed >= 0) speed <= -10'd5;
+                else           speed <= 10'd5;
+                pos_x_accum <= pos_x_accum; // 停在原地 (不更新位置)
+                pos_y_accum <= pos_y_accum;
+                speed_delay <= 0;
+                // 撞牆可以不設 CD，或者設一個很短的 CD (例如 2) 防止摩擦卡住
+                hit_cd_cnt <= HIT_COOLDOWN_TIME; 
+            end
             
-            pos_x_accum <= next_pos_x_accum;
-            pos_y_accum <= next_pos_y_accum;
-            speed <= next_speed;
-            
-            // 如果發生碰撞，重置加速計時器，讓反彈瞬間生效
-            if (is_car_hit || is_wall_hit)
-                speed_delay <= 0; 
-            else
-                speed_delay <= speed_delay + 1; 
+            // 情況 4: 正常行駛
+            else begin
+                pos_x_accum <= next_pos_x_accum;
+                pos_y_accum <= next_pos_y_accum;
+                speed <= next_speed;
+                speed_delay <= speed_delay + 1;
+            end
         end
     end
-
 endmodule
 module direction_lut (
     input [3:0] angle_idx, // 0=Up, 順時針增加
