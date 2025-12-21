@@ -5,3 +5,4 @@ ip/
 
 # Ignore all the .gif, .png files
 *.gif
+*.png

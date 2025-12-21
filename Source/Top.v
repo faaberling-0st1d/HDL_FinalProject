@@ -3,6 +3,9 @@ module Top (
     input wire rst,
     inout wire PS2_CLK,
     inout wire PS2_DATA,
+    // Button
+    input wire start_btn,
+    input wire setting_btn,
     // VGA 輸出
     output wire [3:0] vgaRed,
     output wire [3:0] vgaGreen,
@@ -32,6 +35,18 @@ module Top (
 
 
     // --- 模組實例化 ---
+    wire [2:0] state;
+    StateEncoder state_encoder (
+        .clk(clk), .rst(rst),
+
+        .start_btn(start_btn),     // Game Starting Button
+        .setting_btn(setting_btn), // Game Setting Button
+        .pause_btn(pause_btn),     // Game Pause Button (for state COUNTDOWN & RACING)
+
+        .is_game_end(0), // Whether the racing game has ended. (遊戲結束)
+
+        .state(state)
+    );
     
     // 1. 時脈除頻
     clock_divider #(.n(2)) clk25(.clk(clk), .clk_div(clk_25MHz));
@@ -46,19 +61,19 @@ module Top (
     // 從鍵盤接收訊息
     wire [1:0] p1_h_code;
     wire [1:0] p1_v_code;
-    wire      p1_boost;
-    wire      p1_honk;
+    wire       p1_boost;
+    wire       p1_honk;
     wire [1:0] p2_h_code;
     wire [1:0] p2_v_code;
-    wire      p2_boost;
-    wire      p2_honk;
+    wire       p2_boost;
+    wire       p2_honk;
     OperationEncoder op_encoder (
         .clk(clk), .rst(rst),
 
         .PS2_DATA(PS2_DATA),
         .PS2_CLK(PS2_CLK),
 
-        .state(3'd4 /* 設為 RACING 先 */), // Current state from the FSM (StateEncoder)
+        .state(state), // Current state from the FSM (StateEncoder)
     
         .p1_h_code(p1_h_code), .p1_v_code(p1_v_code),
         .p1_honk(p1_honk),
@@ -75,7 +90,7 @@ module Top (
     ) p1_engine (
         .clk(clk), .rst(rst),
 
-        .state(3'd4 /* 設為 RACING 先 */), // From StateEncoder
+        .state(state), // From StateEncoder
 
         .h_code(p1_h_code), .v_code(p1_v_code), // From OperationEncoder Module               // From OperationEncoder Module
 
@@ -91,7 +106,7 @@ module Top (
     ) p2_engine (
         .clk(clk), .rst(rst),
 
-        .state(3'd4 /* 設為 RACING 先 */), // From StateEncoder
+        .state(state), // From StateEncoder
 
         .h_code(p2_h_code), .v_code(p2_v_code), // From OperationEncoder Module
         .pos_x(p2_world_x), .pos_y(p2_world_y),
