@@ -330,32 +330,39 @@ module Top (
     localparam DBG_R_MIN_SQ = 10'd4;
     localparam DBG_R_MAX_SQ = 10'd9;
 
-  // --- 優化後的 Debug 繪製邏輯 (使用方形取代圓形，移除乘法器) ---
+  // --- Debug Layer: 繪製碰撞框 (已優化為矩形) ---
+    // 說明：為了配合 PhysicsEngine 的 AABB 判定，這裡改畫空心正方形
+    // 優點：完全移除乘法器 (dx*dx)，只用減法，解決 Timing 問題
+    
+    // 定義碰撞框半徑 (Half-Size)
+    // 數值 3 代表從中心往外 3 pixel，總寬度 7 pixel (與物理引擎一致)
+    localparam DBG_BOX_SIZE = 10'd3; 
 
-    // 定義一個函數來檢查「當前像素是否在方形邊框上」
-    // 使用絕對值計算，速度比乘法快非常多
+    // 定義函數：檢查當前像素是否在「空心方形」的邊框上
     function is_on_box;
-        input [9:0] px, py; // 當前像素世界座標
-        input [9:0] cx, cy; // 中心座標
+        input [9:0] px, py; // 當前像素世界座標 (Pixel World Pos)
+        input [9:0] cx, cy; // 碰撞中心座標 (Collider Center)
         reg [9:0] abs_dx, abs_dy;
         begin
-            // 1. 計算絕對距離 (使用 Mux 處理，避免負數運算問題)
+            // 1. 計算絕對距離 (使用 MUX 實現 abs，比乘法快且省資源)
             abs_dx = (px >= cx) ? (px - cx) : (cx - px);
             abs_dy = (py >= cy) ? (py - cy) : (cy - py);
 
-            // 2. 繪製空心方形
-            // 外徑設為 3 (整個框寬度 7 pixel)，內徑設為 1 (中間挖空 3 pixel)
-            // 邏輯：(距離 <= 3) 且 (其中一邊距離 > 1) 形成邊框
-            is_on_box = (abs_dx <= 3 && abs_dy <= 3) && (abs_dx > 1 || abs_dy > 1);
+            // 2. 判定邏輯：
+            // (距離 <= 外徑) AND (距離 > 內徑) -> 形成空心邊框
+            // 這裡設定：在 3x3 範圍內，但排除掉中心的 1x1 範圍，形成一個稍微厚一點的框
+            is_on_box = (abs_dx <= DBG_BOX_SIZE && abs_dy <= DBG_BOX_SIZE) && 
+                        (abs_dx > (DBG_BOX_SIZE - 2) || abs_dy > (DBG_BOX_SIZE - 2));
         end
     endfunction
 
-    // 呼叫新的 Box 函數
+    // 呼叫函數繪製四個碰撞點 (P1前後、P2前後)
     wire p1_f_draw = is_on_box(map_global_x, map_global_y, P1_f_x, P1_f_y);
     wire p1_r_draw = is_on_box(map_global_x, map_global_y, P1_r_x, P1_r_y);
     wire p2_f_draw = is_on_box(map_global_x, map_global_y, P2_f_x, P2_f_y);
     wire p2_r_draw = is_on_box(map_global_x, map_global_y, P2_r_x, P2_r_y);
-     // 判定當前像素是否是 Debug 線條
+
+    // 整合訊號
     wire is_debug_pixel = (p1_f_draw || p1_r_draw || p2_f_draw || p2_r_draw);
 
    
