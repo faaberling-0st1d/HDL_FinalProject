@@ -36,7 +36,7 @@ module StateEncoder (
     localparam FINISH    = 3'd6;
 
     /* [COUNTER] */
-    reg [27:0] countdown_cnt, next_countdown_cnt;
+    reg [28:0] countdown_cnt, next_countdown_cnt;
     parameter SECOND = 100000000;
     parameter COUNTDOWN_TIME_LIMIT = 3 * SECOND - 1;
 

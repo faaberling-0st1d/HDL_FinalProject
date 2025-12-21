@@ -6,6 +6,7 @@ module Top (
     // Button
     input wire start_btn,
     input wire setting_btn,
+    input wire pause_btn,
     // VGA 輸出
     output wire [3:0] vgaRed,
     output wire [3:0] vgaGreen,
@@ -14,7 +15,9 @@ module Top (
     output wire vsync,
     // 7 Segment 輸出
     output wire [6:0] display,
-    output wire [3:0] digit
+    output wire [3:0] digit,
+    // LED 輸出
+    output wire [2:0] led
 );
     // --- 參數設定 ---
     parameter MAP_BASE_ADDR   = 17'd90001; // 地圖起始位址
@@ -38,15 +41,13 @@ module Top (
     wire [2:0] state;
     StateEncoder state_encoder (
         .clk(clk), .rst(rst),
-
         .start_btn(start_btn),     // Game Starting Button
         .setting_btn(setting_btn), // Game Setting Button
         .pause_btn(pause_btn),     // Game Pause Button (for state COUNTDOWN & RACING)
-
         .is_game_end(0), // Whether the racing game has ended. (遊戲結束)
-
         .state(state)
     );
+    assign led = state;
     
     // 1. 時脈除頻
     clock_divider #(.n(2)) clk25(.clk(clk), .clk_div(clk_25MHz));
@@ -92,11 +93,11 @@ module Top (
 
         .state(state), // From StateEncoder
 
-        .h_code(p1_h_code), .v_code(p1_v_code), // From OperationEncoder Module               // From OperationEncoder Module
+        .h_code(p1_h_code), .v_code(p1_v_code), // From OperationEncoder Module
 
         .pos_x(p1_world_x), .pos_y(p1_world_y),
         .angle_idx(p1_degree),
-        .other_x(p2_world_x),.other_y(p2_world_y),
+
         .speed_out(p1_speed)
     );
 
@@ -111,7 +112,8 @@ module Top (
         .h_code(p2_h_code), .v_code(p2_v_code), // From OperationEncoder Module
         .pos_x(p2_world_x), .pos_y(p2_world_y),
         .angle_idx(p2_degree),
-        .other_x(p1_world_x),.other_y(p1_world_y)
+        
+        .speed_out(p2_speed)
     );
 
     // 七段顯示器（Debug 用）
