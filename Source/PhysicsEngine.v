@@ -1,3 +1,4 @@
+(* use_dsp = "no" *)
 module PhysicsEngine #(
     parameter START_X = 0,
     parameter START_Y = 0

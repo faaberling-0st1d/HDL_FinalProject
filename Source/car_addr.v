@@ -1,3 +1,4 @@
+(* use_dsp = "no" *)
 module car_addr (
     input wire [8:0] degree,     // 0~359
     input wire [9:0] pixel_x,    // 0~74
@@ -10,7 +11,6 @@ module car_addr (
     reg [3:0] img_index;
     
     always @(*) begin
-        // 這裡維持之前的邏輯
         if (degree < 23)       img_index = 4'd0;
         else if (degree < 45)  img_index = 4'd1;
         else if (degree < 68)  img_index = 4'd2;
@@ -30,34 +30,38 @@ module car_addr (
     end
 
     // --------------------------------------------------------
-    // Step 2: 計算位址 (針對 8x2 排列優化)
+    // Step 2: 計算位址
     // --------------------------------------------------------
+    wire is_bottom_row;
+    wire [2:0] col_pos;
     
-    // 解析 Index
-    wire is_bottom_row;  // 是否為下半部 (Index 8-15)
-    wire [2:0] col_pos;  // 橫向是第幾張 (0-7)
+    assign is_bottom_row = img_index[3]; 
+    assign col_pos       = img_index[2:0];
 
-    // 利用位元切片，完全不需要運算資源
-    assign is_bottom_row = img_index[3]; // 取第 4 個 bit (數值 8)
-    assign col_pos       = img_index[2:0]; // 取後 3 個 bits (數值 0-7)
-
-    
-    // 計算各部分的 Offset
-    // 1. Bank Offset: 如果是下半部，起始點直接 +45000 (上半部總像素)
     wire [16:0] bank_offset;
     assign bank_offset = (is_bottom_row) ? 17'd45000 : 17'd0;
 
-    // 2. Row Offset: pixel_y * 600 (大圖寬度)
-    wire [16:0] row_offset;
-    assign row_offset = pixel_y * 10'd600;
+    // --------------------------------------------------------
+    // [修正] 移除乘法器，改用移位加法 (Shift-Add)
+    // --------------------------------------------------------
+    
+    // Original: pixel_y * 600
+    // 600 = 512 + 64 + 16 + 8 = (1<<9) + (1<<6) + (1<<4) + (1<<3)
+    wire [19:0] row_offset; 
+    assign row_offset = (pixel_y << 9) + (pixel_y << 6) + (pixel_y << 4) + (pixel_y << 3);
 
-    // 3. Col Offset: 這一排的第幾張圖 * 75
+    // Original: col_pos * 75
+    // 75 = 64 + 8 + 2 + 1 = (1<<6) + (1<<3) + (1<<1) + 1
+    // col_pos is small (3 bits), result fits in 10 bits easily
     wire [9:0] img_x_offset;
-    assign img_x_offset = col_pos * 7'd75;
+    // 這裡 col_pos 是 3 bits，直接轉型避免寬度警告
+    wire [9:0] col_pos_ext = {7'b0, col_pos};
+    assign img_x_offset = (col_pos_ext << 6) + (col_pos_ext << 3) + (col_pos_ext << 1) + col_pos_ext;
 
-    // 4. Final Sum
+    // Final Sum
+    reg [19:0] final_sum; 
     always @(*) begin
-        // Address = Bank(45000 or 0) + Y_Scan(y*600) + Image_X(idx*75) + Local_X
-        rom_addr = bank_offset + row_offset + img_x_offset + pixel_x;
+        final_sum = bank_offset + row_offset + img_x_offset + pixel_x;
+        rom_addr = final_sum[16:0];
     end
 endmodule
