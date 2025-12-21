@@ -1,3 +1,4 @@
+(* use_dsp = "no" *)
 module PhysicsEngine #(
     parameter START_X = 0,
     parameter START_Y = 0
@@ -11,24 +12,25 @@ module PhysicsEngine #(
     input [1:0] v_code, // From OperationEncoder Module
     input       boost,          // From OperationEncoder Module
 
-    output reg [9:0] pos_x,
-    output reg [9:0] pos_y,
+    output wire [9:0] pos_x,
+    output wire [9:0] pos_y,
     output reg [8:0] angle,
 
     output reg [9:0] speed_out
 );
     /* [Speed, Acceleration, Angle] */
-    reg signed [9:0] speed, next_speed;
+    reg signed [9:0] speed;
     reg signed [9:0] acceleration, next_acceleration;
     reg        [8:0] next_angle;
+    // Target angle
     reg        [8:0] target_angle;
     localparam ANGLE_NUM = 9'd360;
     // Map constraints
     localparam MAP_MAX_X = 10'd320, MAP_MAX_Y = 10'd240;
 
     /* [Position (Coordinates)] */
-    reg       [9:0] next_pos_x;
-    reg       [9:0] next_pos_y;
+    // reg       [9:0] next_pos_x;
+    // reg       [9:0] next_pos_y;
 
     /* [Operations (Horizontal)] */
     localparam H_NIL   = 2'd0;
@@ -38,7 +40,7 @@ module PhysicsEngine #(
     localparam V_NIL   = 2'd0;
     localparam V_UP    = 2'd1;
     localparam V_DOWN  = 2'd2;
-
+    // Operation Code
     wire [3:0] movement_code = {h_code, v_code};
 
     /* [States] */
@@ -51,7 +53,7 @@ module PhysicsEngine #(
     localparam FINISH    = 3'd6;
 
     /* [Sequential Circuit]
-     * `acceleration`, `speed`
+     * `acceleration`, `angle`
      */
     always @(posedge clk) begin
         if (rst) begin
@@ -59,16 +61,10 @@ module PhysicsEngine #(
             acceleration <= 10'd0;
             angle        <= 9'd0;
             
-            pos_x <= START_X;
-            pos_y <= START_Y;
-            
         end else begin
             speed_out    <= speed; // Debug
             acceleration <= next_acceleration;
             angle        <= next_angle;
-
-            pos_x <= next_pos_x;
-            pos_y <= next_pos_y;
         end
     end
 
@@ -80,9 +76,9 @@ module PhysicsEngine #(
         case (state)
             RACING: begin
                 if (movement_code != {H_NIL, V_NIL}) begin
-                    next_acceleration = (boost) ? 10'd20 : 10'd5 /* 上下左右自然加上速 */;
+                    next_acceleration = (boost) ? 10'd5 : 10'd1 /* 上下左右自然加上速 */;
                 end else begin
-                    next_acceleration = (speed == 10'd0) ? 10'd0 : -10'd5 /* 自然減速 */;
+                    next_acceleration = (speed == 10'd0) ? 10'd0 : -10'd1 /* 自然減速 */;
                 end
             end
 
@@ -90,54 +86,8 @@ module PhysicsEngine #(
             default: next_acceleration = 10'd0;
         endcase
     end
-    
-    /* [Speed Change Counter] */
-    reg [27:0] speed_change_cnt, next_speed_change_cnt;
-    localparam [27:0] SPEED_CHANGE_TIME = 28'd100_000_000;
 
-    always @(posedge clk) begin
-        if (rst) begin
-            speed_change_cnt <= 28'd0;
-            speed <= 10'd0;
-
-        end else if (state == RACING) begin
-            if (speed_change_cnt >= SPEED_CHANGE_TIME - 1) begin
-                speed_change_cnt <= 28'd0;
-
-                if (speed + acceleration > 10'd30)
-                    speed <= 10'd30;
-                else if (speed + acceleration < 10'd0)
-                    speed <= 10'd0;
-                else
-                    speed <= speed + acceleration;
-            end else begin
-                speed_change_cnt <= speed_change_cnt + 1;
-            end
-        end else begin
-            speed_change_cnt <= 28'd0;
-            speed <= 10'd0;
-        end
-    end
-    
-    /* [II. Speed Combinational Logic] */
-    always @(*) begin
-        // DEFAULT
-        next_speed = speed;
-
-        case (state)
-            RACING: begin
-                if (speed_change_cnt == 0) begin
-                    if (speed + acceleration > 10'd30) next_speed = 10'd30;
-                    else if (speed + acceleration < 0) next_speed = 10'd0; /* Remain 0 if the sum is less than 0 */
-                    else                               next_speed = speed + acceleration;
-                end
-            end
-            PAUSE:   next_speed = speed;
-            default: next_speed = 10'd0;
-        endcase
-    end
-
-    /* [Target Angle] */
+    /* [II. Target Angle] */
     always @(posedge clk) begin
         if (rst) begin
             target_angle <= 9'd0;
@@ -151,7 +101,7 @@ module PhysicsEngine #(
                 {H_LEFT,  V_DOWN}: target_angle <= 9'd225;
                 {H_LEFT,  V_NIL }: target_angle <= 9'd270;
                 {H_LEFT,  V_UP  }: target_angle <= 9'd315;
-                default: target_angle <= target_angle;
+                default:           target_angle <= target_angle; // 維持原狀
             endcase
         end
     end
@@ -159,46 +109,88 @@ module PhysicsEngine #(
     /* [III. Angle Combinational Logic] */
     always @(*) begin
         // DEFAULT
-        // next_angle = angle;
-
         next_angle = target_angle;
-
-        // if (state == RACING && movement_code != {H_NIL, V_NIL}) begin
-        //     if (angle > target_angle)      next_angle = angle - 1;
-        //     else if (angle < target_angle) next_angle = angle + 1;
-        //     else                           next_angle = angle;
-        // end
     end
 
-    /* [角度處理] */
-    // Small horizontal and vertical difference
-    // reg [7:0] dx;
-    // reg [7:0] dy;
-    // always @(*) begin
-    //     // DEFAULT
-    //     dx = 8'd0;
-    //     dy = 8'd0;
+    /* [IV. Angle Look-Up Table] */
+    
+    reg signed [17:0] fx_pos_x, fx_pos_y; // 10 位整數，8 位小數。
+    reg signed [15:0] dx, dy; // 移動量
 
-    //     case (angle)
-        
-    // end
-
-    /* [IV. Coordinate(Position) Combinational Logic] */
+    // 使用 8-bit 精度: 1.0 = 256, 0.707 = 181
     always @(*) begin
-        next_pos_x = pos_x;
-        next_pos_y = pos_y;
+        case (angle)
+            // Original 8 directions:
+            9'd0:    begin dx =  16'd0;   dy = -16'd256; end // Up
+            9'd45:   begin dx =  16'd181; dy = -16'd181; end // Up-Right
+            9'd90:   begin dx =  16'd256; dy =  16'd0;   end // Right
+            9'd135:  begin dx =  16'd181; dy =  16'd181; end // Down-Right
+            9'd180:  begin dx =  16'd0;   dy =  16'd256; end // Down
+            9'd225:  begin dx = -16'd181; dy =  16'd181; end // Down-Left
+            9'd270:  begin dx = -16'd256; dy =  16'd0;   end // Left
+            9'd315:  begin dx = -16'd181; dy = -16'd181; end // Up-Left
+            // Extra 8 directions:
+            9'd23:   begin dx =  16'd100; dy = -16'd236; end
+            9'd68:   begin dx =  16'd237; dy = -16'd96;  end
+            9'd113:  begin dx =  16'd236; dy =  16'd100; end
+            9'd158:  begin dx =  16'd96;  dy =  16'd237; end
+            9'd203:  begin dx = -16'd100; dy =  16'd236; end
+            9'd248:  begin dx = -16'd237; dy =  16'd96;  end
+            9'd293:  begin dx = -16'd236; dy = -16'd100; end
+            9'd338:  begin dx = -16'd96;  dy = -16'd237; end
+            default: begin dx =  16'd0;   dy =  16'd0;   end
+        endcase
+    end
 
-        if (state == RACING) begin
-            case (v_code)
-                V_UP:   next_pos_y = pos_y - 1;
-                V_DOWN: next_pos_y = pos_y + 1;
-                default: ; 
-            endcase
-            case (h_code)
-                H_LEFT:  next_pos_x = pos_x - 1;
-                H_RIGHT: next_pos_x = pos_x + 1;
-                default: ; 
-            endcase
+    /* [VI. Coordinate Update] */
+    // Physics Tick Generator
+    // 每 10ms (100Hz) 更新一次物理邏輯
+    reg [20:0] physics_tick_cnt;
+    localparam [20:0] PHYSICS_TICK_TIME = 21'd1_000_000; // 100MHz / 1_000_000 = 100Hz
+    wire physics_tick = (physics_tick_cnt >= PHYSICS_TICK_TIME - 1);
+    
+    always @(posedge clk) begin
+        if (rst) physics_tick_cnt <= 0;
+        else begin
+            if (physics_tick)
+                physics_tick_cnt <= 0;
+            else
+                physics_tick_cnt <= physics_tick_cnt + 1;
         end
     end
+
+    /* [VII. Integrated Physics Logic] */
+    always @(posedge clk) begin
+        if (rst) begin
+            speed <= 10'd0;
+            fx_pos_x <= START_X << 8;
+            fx_pos_y <= START_Y << 8;
+
+        end else if (state == RACING) begin
+            if (physics_tick) begin
+                if (movement_code != {H_NIL, V_NIL}) begin
+                    // Speed Up (加速)
+                    if (speed + (boost ? 10'd5 : 10'd1) <= 10'd30)
+                        speed <= speed + (boost ? 10'd5 : 10'd1);
+                    else
+                        speed <= 10'd30;
+                end else begin
+                    // Inertia (延切線減速)
+                    if (speed > 10'd0) speed <= speed - 10'd1;
+                    else               speed <= 10'd0;
+                end
+
+                fx_pos_x <= fx_pos_x + ($signed(speed) * $signed(dx));
+                fx_pos_y <= fx_pos_y + ($signed(speed) * $signed(dy));
+            end                
+        end else begin
+            speed <= 10'd0;
+            fx_pos_x <= START_X << 8;
+            fx_pos_y <= START_Y << 8;
+        end
+    end
+
+    assign pos_x = fx_pos_x[17:8]; // Take the integer part.
+    assign pos_y = fx_pos_y[17:8]; // Take the integer part.
+
 endmodule
