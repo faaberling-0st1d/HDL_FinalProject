@@ -1,3 +1,7 @@
+/* [Number Sprite Module]
+ * In order to display number onto the screen when 
+ */
+
 module NumberSprite (
     input [9:0] h_cnt,
     input [9:0] v_cnt,
@@ -13,14 +17,16 @@ module NumberSprite (
         is_pixel = 0;
         if (in_box) begin
             case (num)
-                2'd1: is_pixel = (rel_x >= 25 && rel_x <= 35);
+                2'd1: begin
+                    is_pixel = (rel_x >= 20 && rel_x <= 40);
+                end
                 2'd2: begin
-                    if (rel_y <= 10 || (rel_y >= 45 && rel_y <= 55) || rel_y >= 90) is_pixel = 1; // 三橫
-                    if ((rel_x >= 50 && rel_y < 50) || (rel_x <= 10 && rel_y > 50)) is_pixel = 1; // 兩豎
+                    if (rel_y <= 20 || (rel_y >= 40 && rel_y <= 60) || rel_y >= 80) is_pixel = 1; // 三橫
+                    if ((rel_x >= 40 && rel_y < 50) || (rel_x <= 20 && rel_y > 50)) is_pixel = 1; // 兩豎
                 end
                 2'd3: begin
-                    if (rel_y <= 10 || (rel_y >= 45 && rel_y <= 55) || rel_y >= 90) is_pixel = 1; // 三橫
-                    if (rel_x >= 50) is_pixel = 1; // 一整條右邊豎線
+                    if (rel_y <= 20 || (rel_y >= 40 && rel_y <= 60) || rel_y >= 80) is_pixel = 1; // 三橫
+                    if (rel_x >= 40) is_pixel = 1; // 一整條右邊豎線
                 end
             endcase
         end
