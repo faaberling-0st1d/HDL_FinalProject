@@ -133,7 +133,7 @@ module Top (
         .angle_idx(p2_degree),
         .other_f_x(P1_f_x),.other_f_y(P1_f_y),.other_r_x(P1_r_x),.other_r_y(P1_r_y),
         .my_f_x(P2_f_x),.my_f_y(P2_f_y),.my_r_x(P2_r_x),.my_r_y(P2_r_y),
-        .speed_out(p2_speed),flag(p2_flag_order)
+        .speed_out(p2_speed),.flag(p2_flag_order)
     );
 
     // 七段顯示器（Debug 用）
@@ -401,8 +401,9 @@ module Top (
     always @(*) begin
         if (!valid) begin
             final_color = 12'h000; // Blanking
+        end
         else if(state==IDLE)begin
-            if((h_cnt>160 && h_cnt<480) && v_cnt>120 && v_cnt<360)begin  480
+            if((h_cnt>160 && h_cnt<480) && v_cnt>120 && v_cnt<360)begin
                 final_color = lobby_data;
             end
             else begin
