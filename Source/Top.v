@@ -330,25 +330,31 @@ module Top (
     localparam DBG_R_MIN_SQ = 10'd4;
     localparam DBG_R_MAX_SQ = 10'd9;
 
-    // 定義一個函數來檢查「當前像素是否在圓環上」
-    function is_on_circle;
+  // --- 優化後的 Debug 繪製邏輯 (使用方形取代圓形，移除乘法器) ---
+
+    // 定義一個函數來檢查「當前像素是否在方形邊框上」
+    // 使用絕對值計算，速度比乘法快非常多
+    function is_on_box;
         input [9:0] px, py; // 當前像素世界座標
-        input [9:0] cx, cy; // 圓心座標
-        reg signed [10:0] dx, dy;
-        reg [21:0] d_sq;
+        input [9:0] cx, cy; // 中心座標
+        reg [9:0] abs_dx, abs_dy;
         begin
-            dx = $signed({1'b0, px}) - $signed({1'b0, cx});
-            dy = $signed({1'b0, py}) - $signed({1'b0, cy});
-            d_sq = (dx*dx) + (dy*dy);
-            // 如果距離在 內徑 與 外徑 之間，就是圓環邊緣
-            is_on_circle = (d_sq >= DBG_R_MIN_SQ && d_sq <= DBG_R_MAX_SQ);
+            // 1. 計算絕對距離 (使用 Mux 處理，避免負數運算問題)
+            abs_dx = (px >= cx) ? (px - cx) : (cx - px);
+            abs_dy = (py >= cy) ? (py - cy) : (cy - py);
+
+            // 2. 繪製空心方形
+            // 外徑設為 3 (整個框寬度 7 pixel)，內徑設為 1 (中間挖空 3 pixel)
+            // 邏輯：(距離 <= 3) 且 (其中一邊距離 > 1) 形成邊框
+            is_on_box = (abs_dx <= 3 && abs_dy <= 3) && (abs_dx > 1 || abs_dy > 1);
         end
     endfunction
 
-    wire p1_f_draw = is_on_circle(map_global_x, map_global_y, P1_f_x, P1_f_y);
-    wire p1_r_draw = is_on_circle(map_global_x, map_global_y, P1_r_x, P1_r_y);
-    wire p2_f_draw = is_on_circle(map_global_x, map_global_y, P2_f_x, P2_f_y);
-    wire p2_r_draw = is_on_circle(map_global_x, map_global_y, P2_r_x, P2_r_y);
+    // 呼叫新的 Box 函數
+    wire p1_f_draw = is_on_box(map_global_x, map_global_y, P1_f_x, P1_f_y);
+    wire p1_r_draw = is_on_box(map_global_x, map_global_y, P1_r_x, P1_r_y);
+    wire p2_f_draw = is_on_box(map_global_x, map_global_y, P2_f_x, P2_f_y);
+    wire p2_r_draw = is_on_box(map_global_x, map_global_y, P2_r_x, P2_r_y);
      // 判定當前像素是否是 Debug 線條
     wire is_debug_pixel = (p1_f_draw || p1_r_draw || p2_f_draw || p2_r_draw);
 
