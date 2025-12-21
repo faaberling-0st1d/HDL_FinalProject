@@ -33,7 +33,7 @@ module Top (
     wire clk_25MHz, valid;
     wire [9:0] h_cnt, v_cnt;
 
-    // 從 Engine 來的資訊
+    // 在地圖上的絕對座標
     wire [9:0] p1_world_x, p1_world_y;
     wire [9:0] p2_world_x, p2_world_y;
     wire [3:0] p1_degree,  p2_degree;
@@ -97,7 +97,7 @@ module Top (
         .p2_honk(p2_honk)
     );
 
-    // 4. 遊戲物理引擎 (處理移動、碰撞)
+    //遊戲物理引擎 (處理移動、碰撞)
     // p1 (左邊)
     wire [9:0] p1_speed;
     wire [9:0] P1_f_x; wire [9:0] P1_f_y; wire [9:0] P1_r_x; wire [9:0] P1_r_y;
@@ -189,8 +189,8 @@ module Top (
     wire [11:0] data_map;
     
     // 地圖的世界座標
-    wire [9:0] map_global_x = (screen_rel_x >> 2) + (my_world_x - 40); // 假設中心在160，地圖縮放2倍
-    wire [9:0] map_global_y = (v_cnt >> 2) + (my_world_y - 45);        // 假設中心在240(120*2)
+    wire [9:0] map_global_x = (screen_rel_x >> 3) + (my_world_x - 20); // 假設中心在160，地圖縮放2倍
+    wire [9:0] map_global_y = (v_cnt >> 3) + (my_world_y - 22);        // 假設中心在240(120*2)
     wire is_out_of_map = (map_global_x >= MAP_WIDTH) || (map_global_y >= MAP_HEIGHT);
 
     always @(*) begin
@@ -257,8 +257,8 @@ module Top (
 
     // 2. [敵人的車] (相對座標)
     // 距離 = (Enemy - Me) * 2 (地圖放大倍率)
-    wire signed [12:0] diff_x = (enemy_world_x - my_world_x) <<< 2;
-    wire signed [12:0] diff_y = (enemy_world_y - my_world_y) <<< 2;
+    wire signed [12:0] diff_x = (enemy_world_x - my_world_x) <<< 3;
+    wire signed [12:0] diff_y = (enemy_world_y - my_world_y) <<< 3;
     wire signed [12:0] enemy_center_x = 160 + diff_x;
     wire signed [12:0] enemy_center_y = 180 + diff_y;
     
@@ -331,8 +331,6 @@ module Top (
     // 假設有一個開關 sw[0] 用來切換是否顯示 Debug 框
     // 如果你的板子沒有 sw 輸入，可以暫時寫死為 1'b1
     
-    reg is_debug_pixel;
-    
     // 取得當前掃描點對應的「世界座標」 (這在你的地圖邏輯裡應該已經算好了)
     // 變數名稱可能叫 map_global_x / map_global_y
     
@@ -360,15 +358,10 @@ module Top (
     wire p1_r_draw = is_on_circle(map_global_x, map_global_y, P1_r_x, P1_r_y);
     wire p2_f_draw = is_on_circle(map_global_x, map_global_y, P2_f_x, P2_f_y);
     wire p2_r_draw = is_on_circle(map_global_x, map_global_y, P2_r_x, P2_r_y);
-    
-    // 判定當前像素是否是 Debug 線條
-    always @(*) begin
-        // 只有在對應的視窗才畫 (例如左邊畫 P1, 右邊畫 P2，或者全部都畫)
-        // 這裡簡單起見，全域都畫
-        is_debug_pixel = (p1_f_draw || p1_r_draw || p2_f_draw || p2_r_draw);
-    end
+     // 判定當前像素是否是 Debug 線條
+    wire is_debug_pixel = (p1_f_draw || p1_r_draw || p2_f_draw || p2_r_draw);
 
-    // --- 4. 最終顏色輸出 (Priority Mux) ---
+    //最終顏色輸出
     reg [11:0] final_color;
     
     always @(*) begin
@@ -394,7 +387,7 @@ module Top (
         end else if (is_separator) begin
             final_color = SEPARATOR_COLOR; // 分割線
         end else if (sw && is_debug_pixel) begin
-             final_color = 12'hF0F; // 亮紫色 (Magenta) 方便辨識
+             final_color = 12'hF0F; // 亮紫色
         end else if (state == COUNTDOWN && is_countdown_pixel) begin
             final_color = 12'hFFF;
 

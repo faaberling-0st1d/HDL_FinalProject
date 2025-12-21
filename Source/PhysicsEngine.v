@@ -3,10 +3,9 @@ module PhysicsEngine #(
     parameter START_Y = 120,
     parameter CLK_FREQ = 100_000_000,
     
-    // --- [新增] 碰撞參數 ---
     parameter MAP_W = 10'd320,   // 地圖寬
     parameter MAP_H = 10'd240,   // 地圖高
-    parameter OFFSET_DIST = 10'd5, // 圓心距離車中心的偏移量 (車長/4)
+    parameter OFFSET_DIST = 10'd5, // 圓心距離車中心的偏移量
     parameter COLLISION_RSQ = 10'd25
 )(
     input clk,
@@ -16,11 +15,11 @@ module PhysicsEngine #(
     input [1:0] v_code, 
     input boost,        
     
-    // 對手碰撞圓 (從 Top 傳入)
+    // 對手碰撞圓
     input [9:0] other_f_x, input [9:0] other_f_y, 
     input [9:0] other_r_x, input [9:0] other_r_y, 
 
-    // 輸出自己的碰撞圓 (給 Top 傳給對手)
+    // 自己碰撞圓
     output wire [9:0] my_f_x, output wire [9:0] my_f_y,
     output wire [9:0] my_r_x, output wire [9:0] my_r_y,
     
@@ -30,7 +29,7 @@ module PhysicsEngine #(
     output reg  [9:0] speed_out
 );
     localparam HIT_COOLDOWN_TIME = 6'd30;
-    // --- 0. 產生 60Hz 的遊戲節拍 (Game Tick) ---
+    // 60Hz Game Tick
     reg [20:0] tick_cnt;
     wire game_tick;
     
@@ -47,7 +46,7 @@ module PhysicsEngine #(
 
     always @(posedge clk) begin
         if (rst) begin
-            internal_angle <= 6'd0; // 預設朝上或朝右需看您 LUT 定義，假設 0 是上
+            internal_angle <= 6'd0;
             angle_idx <= 0; 
             turn_delay <= 0;
         end else if (game_tick && state == 3'd4) begin
@@ -68,7 +67,7 @@ module PhysicsEngine #(
         end
     end
 
-    // --- 2. 向量與圓心計算 (整合碰撞前置作業) ---
+    //向量與圓心計算
     reg signed [9:0] speed;
     reg signed [9:0] next_speed;
     wire signed [9:0] unit_x, unit_y; // 來自 LUT (Q8 格式, 放大256倍)
@@ -88,20 +87,18 @@ module PhysicsEngine #(
     assign final_off_y = raw_off_y >>> 8;
 
     // 計算並輸出絕對座標 (目前位置 +/- 偏移量)
-    // pos_x 是 wire (來自 accum 的高 10 位)，直接相加即可
     assign my_f_x = pos_x + final_off_x;
     assign my_f_y = pos_y + final_off_y;
     assign my_r_x = pos_x - final_off_x;
     assign my_r_y = pos_y - final_off_y;
 
-    // --- 3. 碰撞檢測邏輯 (Combinational) ---
-    
-    // A. 撞牆檢測 (Wall Collision) - 檢查前圓或後圓是否出界
+    //碰撞檢測邏輯
+    //撞牆檢測
     wire wall_hit_f = (my_f_x < 10 || my_f_x+10 > MAP_W || my_f_y < 10 || my_f_y+10 > MAP_H);
     wire wall_hit_r = (my_r_x < 10 || my_r_x+10 > MAP_W || my_r_y < 10 || my_r_y+10 > MAP_H);
     wire is_wall_hit = wall_hit_f | wall_hit_r;
 
-    // B. 撞車檢測 (Car Collision) - 雙圓形交叉比對
+    //撞車檢測
     // 距離平方計算函數
     function check_hit_func;
         input [9:0] x1, y1, x2, y2;
@@ -122,7 +119,7 @@ module PhysicsEngine #(
     
     wire is_car_hit = (hit_ff | hit_fr | hit_rf | hit_rr);
 
-    // --- 4. 座標與速度更新邏輯 ---
+    //座標與速度更新邏輯
     reg signed [19:0] pos_x_accum, next_pos_x_accum;
     reg signed [19:0] pos_y_accum, next_pos_y_accum;
     
@@ -134,18 +131,18 @@ module PhysicsEngine #(
     
     always @(posedge clk) speed_out <= speed;
 
-   // --- Combinational: 只負責算「正常情況下」的下一幀數值 ---
+   // 無碰撞數值計算
     always @(*) begin
         // 預設保持原值
         next_speed = speed;
         next_pos_x_accum = pos_x_accum;
         next_pos_y_accum = pos_y_accum;
 
-        // 計算摩擦力與加減速 (正常物理)
+        // 計算摩擦力與加減速
         if(speed_delay == 0) begin
             if (v_code == 2'd1 /*UP*/) begin
                 if (boost && speed < 15)      next_speed = speed + 1;
-                else if (!boost && speed < 8) next_speed = speed + 1;
+                else if (!boost && speed < 6) next_speed = speed + 1;
             end else if (v_code == 2'd2 /*DOWN*/) begin
                 if (speed > -4) next_speed = speed - 1;
             end else begin
@@ -154,14 +151,14 @@ module PhysicsEngine #(
             end
         end
         
-        // 計算位置 (正常移動)
+        // 計算位置
         if (speed != 0) begin
-            next_pos_x_accum = pos_x_accum + speed * unit_x;
-            next_pos_y_accum = pos_y_accum + speed * unit_y;
+            next_pos_x_accum = pos_x_accum + ((speed * unit_x)>>>2);
+            next_pos_y_accum = pos_y_accum + ((speed * unit_y)>>>2);
         end
     end
 
-    // --- Sequential Logic: 處理狀態更新與碰撞觸發 ---
+    //處理狀態更新與碰撞觸發
     always @(posedge clk) begin
         if (rst) begin
             pos_x_accum <= START_X << 10;
@@ -197,11 +194,10 @@ module PhysicsEngine #(
                 pos_x_accum <= pos_x_accum; // 停在原地 (不更新位置)
                 pos_y_accum <= pos_y_accum;
                 speed_delay <= 0;
-                // 撞牆可以不設 CD，或者設一個很短的 CD (例如 2) 防止摩擦卡住
                 hit_cd_cnt <= 6'd20; 
             end
             
-            // 情況 4: 正常行駛
+            //正常行駛
             else begin
                 pos_x_accum <= next_pos_x_accum;
                 pos_y_accum <= next_pos_y_accum;
