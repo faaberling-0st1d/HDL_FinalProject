@@ -382,14 +382,32 @@ module Top (
         .rgb_data(flag_data),
         .is_b(0)
     );
-
+    wire [16:0] lobby_addr = h_cnt + (v_cnt << 8) + (v_cnt << 6);
+    wire [3:0] lobby_code;
+    wire [11:0] lobby_data;
+    blk_mem_gen_3 lobby_ram(
+        .clka(clk_25MHz),
+        .addra(lobby_addr),
+        .douta(lobby_code)
+    );
+    color_decoder lobby_decoder(
+        .color_index(lobby_code),
+        .rgb_data(lobby_data),
+        .is_b(0)
+    );
     //最終顏色輸出
     reg [11:0] final_color;
     
     always @(*) begin
         if (!valid) begin
             final_color = 12'h000; // Blanking
-
+        else if(state==IDLE)begin
+            if((h_cnt>160 && h_cnt<480) && v_cnt>120 && v_cnt<360)begin  480
+                final_color = lobby_data;
+            end
+            else begin
+                final_color = 12'hBEB;
+            end
         end else if (is_hud_separator)begin
             final_color = SEPARATOR_COLOR;
 
