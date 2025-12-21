@@ -125,7 +125,7 @@ module PhysicsEngine #(
                 {H_LEFT,  V_DOWN}: target_angle <= 9'd225;
                 {H_LEFT,  V_NIL }: target_angle <= 9'd270;
                 {H_LEFT,  V_UP  }: target_angle <= 9'd315;
-                default: target_angle <= 9'd0;
+                default:           target_angle <= target_angle; // 維持原狀
             endcase
         end
     end
@@ -133,13 +133,13 @@ module PhysicsEngine #(
     /* [III. Angle Combinational Logic] */
     always @(*) begin
         // DEFAULT
-        next_angle = angle;
+        next_angle = target_angle;
 
-        if (state == RACING && movement_code != {H_NIL, V_NIL}) begin
-            if (angle > target_angle)      next_angle = angle - 1;
-            else if (angle < target_angle) next_angle = angle + 1;
-            else                           next_angle = angle;
-        end
+        // if (state == RACING && movement_code != {H_NIL, V_NIL}) begin
+        //     if (angle > target_angle)      next_angle = angle - 1;
+        //     else if (angle < target_angle) next_angle = angle + 1;
+        //     else                           next_angle = angle;
+        // end
     end
 
     /* [IV. Coordinate(Position) Combinational Logic] */
@@ -169,4 +169,14 @@ module PhysicsEngine #(
             endcase
         end
     end
+
+    // reg signed [17:0] fx_pos_x, fx_pos_y; // 10 位整數，8 位小數。
+    // reg signed [15:0] dx, dy; // 移動量
+
+    // /* [Angle Look-Up Table] */
+    // always @(*) begin
+    //     case (angle)
+    //         9'd0:
+
+    // end
 endmodule
