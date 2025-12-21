@@ -110,7 +110,7 @@ module PhysicsEngine #(
             abs_dx = (x1 > x2) ? (x1 - x2) : (x2 - x1);
             abs_dy = (y1 > y2) ? (y1 - y2) : (y2 - y1);
             // 兩車距離小於 COLLISION_SIZE * 2 (兩邊半徑和)
-            check_hit_box = (abs_dx < (COLLISION_SIZE << 1)) && (abs_dy < (COLLISION_SIZE << 1));
+            check_hit_box = (abs_dx < COLLISION_SIZE) && (abs_dy < COLLISION_SIZE);
         end
     endfunction
 

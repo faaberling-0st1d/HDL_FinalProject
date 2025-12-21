@@ -398,7 +398,7 @@ module Top (
         .douta(lobby_code)
     );
     start_color_decoder lobby_decoder(
-        .color_index(lobby_code),
+        .start_color_index(lobby_code),
         .rgb_data(lobby_data)
     );
     //最終顏色輸出
