@@ -17,7 +17,9 @@ module Top (
     output wire [6:0] display,
     output wire [3:0] digit,
     // LED 輸出
-    output wire [2:0] led
+    output wire [2:0] led,
+    //debug switch
+    input sw
 );
     // --- 參數設定 ---
     parameter MAP_BASE_ADDR   = 17'd90001; // 地圖起始位址
@@ -325,6 +327,47 @@ module Top (
         .is_pixel(is_countdown_pixel)
     );
     
+    // --- Debug Layer: 繪製碰撞框 ---
+    // 假設有一個開關 sw[0] 用來切換是否顯示 Debug 框
+    // 如果你的板子沒有 sw 輸入，可以暫時寫死為 1'b1
+    
+    reg is_debug_pixel;
+    
+    // 取得當前掃描點對應的「世界座標」 (這在你的地圖邏輯裡應該已經算好了)
+    // 變數名稱可能叫 map_global_x / map_global_y
+    
+    // 為了節省資源，我們只計算圓框 (Hollow Circle)
+    // 半徑平方判定: 18^2 = 324。我們畫 16^2 ~ 19^2 之間的像素，形成一個圈
+    localparam DBG_R_MIN_SQ = 10'd256; // 16^2
+    localparam DBG_R_MAX_SQ = 10'd400; // 20^2 (你的碰撞半徑)
+
+    // 定義一個函數來檢查「當前像素是否在圓環上」
+    function is_on_circle;
+        input [9:0] px, py; // 當前像素世界座標
+        input [9:0] cx, cy; // 圓心座標
+        reg signed [10:0] dx, dy;
+        reg [21:0] d_sq;
+        begin
+            dx = $signed({1'b0, px}) - $signed({1'b0, cx});
+            dy = $signed({1'b0, py}) - $signed({1'b0, cy});
+            d_sq = (dx*dx) + (dy*dy);
+            // 如果距離在 內徑 與 外徑 之間，就是圓環邊緣
+            is_on_circle = (d_sq >= DBG_R_MIN_SQ && d_sq <= DBG_R_MAX_SQ);
+        end
+    endfunction
+
+    wire p1_f_draw = is_on_circle(map_global_x, map_global_y, P1_f_x, P1_f_y);
+    wire p1_r_draw = is_on_circle(map_global_x, map_global_y, P1_r_x, P1_r_y);
+    wire p2_f_draw = is_on_circle(map_global_x, map_global_y, P2_f_x, P2_f_y);
+    wire p2_r_draw = is_on_circle(map_global_x, map_global_y, P2_r_x, P2_r_y);
+    
+    // 判定當前像素是否是 Debug 線條
+    always @(*) begin
+        // 只有在對應的視窗才畫 (例如左邊畫 P1, 右邊畫 P2，或者全部都畫)
+        // 這裡簡單起見，全域都畫
+        is_debug_pixel = (p1_f_draw || p1_r_draw || p2_f_draw || p2_r_draw);
+    end
+
     // --- 4. 最終顏色輸出 (Priority Mux) ---
     reg [11:0] final_color;
     
@@ -350,7 +393,8 @@ module Top (
 
         end else if (is_separator) begin
             final_color = SEPARATOR_COLOR; // 分割線
-        
+        end else if (sw && is_debug_pixel) begin
+             final_color = 12'hF0F; // 亮紫色 (Magenta) 方便辨識
         end else if (state == COUNTDOWN && is_countdown_pixel) begin
             final_color = 12'hFFF;
 
