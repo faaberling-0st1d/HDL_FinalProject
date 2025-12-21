@@ -27,7 +27,7 @@ module PhysicsEngine #(
     output wire [9:0] pos_y,
     output reg  [3:0] angle_idx, 
     output reg  [9:0] speed_out,
-    output [1:0] flag 
+    output reg [1:0] flag 
 );
     localparam HIT_COOLDOWN_TIME = 6'd30;
     // 60Hz Game Tick
