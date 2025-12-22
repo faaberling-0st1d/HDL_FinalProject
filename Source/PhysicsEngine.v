@@ -41,8 +41,8 @@ module PhysicsEngine #(
     localparam PAUSE     = 3'd5;
     localparam FINISH    = 3'd6;
 
-    // --- 0. Game Tick 生成 ---
-    // [優化] 預先算好常數，減少比較器大小
+    //Game Tick 生成
+    //120hz
     localparam TICK_LIMIT = CLK_FREQ / 120;
     reg [20:0] tick_cnt;
     wire game_tick = (tick_cnt == TICK_LIMIT); 
@@ -56,7 +56,7 @@ module PhysicsEngine #(
         else tick_cnt <= tick_cnt + 1;
     end
 
-    // --- 1. 角度控制 ---
+    //角度控制
     reg [5:0] internal_angle; 
     reg [3:0] turn_delay; 
 
@@ -101,26 +101,21 @@ module PhysicsEngine #(
     
     direction_lut lut_inst (.angle_idx(angle_idx), .dir_x(unit_x), .dir_y(unit_y));
 
-    // [優化] 移除乘法器，改用移位 (Shift)
-    // 假設 OFFSET_DIST 是 2，這等於 >>> 8 再 << 1，合併為 >>> 7
-    // 原本: (unit_x * 2) >>> 8  =>  unit_x >>> 7
-    wire signed [9:0] final_off_x = unit_x >>> 7;
-    wire signed [9:0] final_off_y = unit_y >>> 7;
+    wire signed [9:0] final_off_x = unit_x >>> 5;
+    wire signed [9:0] final_off_y = unit_y >>> 5;
 
     always @(posedge clk) begin
         if (rst) begin
             my_f_x <= 0; my_f_y <= 0;
             my_r_x <= 0; my_r_y <= 0;
         end else begin
-            // 這裡直接取用 pos_x_accum 的高位，確保數值穩定
             my_f_x <= (pos_x_accum[19:10]) + final_off_x;
             my_f_y <= (pos_y_accum[19:10]) + final_off_y;
             my_r_x <= (pos_x_accum[19:10]) - final_off_x;
             my_r_y <= (pos_y_accum[19:10]) - final_off_y;
         end
     end
-    // --- 3. 碰撞檢測 (Box Collision) ---
-    // [優化] 使用矩形碰撞取代圓形，移除所有乘法器
+    // 碰撞檢測
        function check_hit_func;
         input [9:0] x1, y1, x2, y2;
         reg signed [10:0] dx, dy;
@@ -145,22 +140,17 @@ module PhysicsEngine #(
     wire wall_hit_f = (my_f_x < 6 || my_f_x > MAP_W - 6 || my_f_y < 6 || my_f_y > MAP_H - 6);
     wire wall_hit_r = (my_r_x < 8 || my_r_x > MAP_W - 6 || my_r_y < 8 || my_r_y > MAP_H - 6);
 
-    // --- 4. 下個狀態邏輯 (Combinational) ---
+    //n (Combinational) ---
     
     reg [5:0] hit_cd_cnt;
     reg [2:0] speed_delay; 
-    // [優化修正] 改用四捨五入 (Rounding)
-    // 取消 tick_cnt[0] 的抖動，直接判定小數點第一位 (bit 9)
-    // 如果 bit 9 是 1 (代表 >= 0.5)，就進位 (+1)
-    // 如果 bit 9 是 0 (代表 < 0.5)，就不變
-    
-    // 原理： (整數部分) + (小數第一位 ? 1 : 0)
+    // 座標四捨五入
     assign pos_x = pos_x_accum[19:10] + {9'd0, pos_x_accum[9]}; 
     assign pos_y = pos_y_accum[19:10] + {9'd0, pos_y_accum[9]};
     
     always @(posedge clk) speed_out <= speed;
 
-    // 這裡計算 "假如沒有發生碰撞" 的正常物理變量
+    //正常物理變量
     reg signed [9:0] target_speed;
     always @(*) begin
         target_speed = speed;
@@ -184,7 +174,7 @@ module PhysicsEngine #(
 
     
 
-    // --- 5. 狀態更新 (Sequential) ---
+    // 狀態更新
     always @(posedge clk) begin
         if (rst) begin
             pos_x_accum <= START_X << 10;
@@ -209,7 +199,7 @@ module PhysicsEngine #(
                     pos_x_accum <= pos_x_accum + ((speed * unit_x) >>> 2);
                     pos_y_accum <= pos_y_accum + ((speed * unit_y) >>> 2);
                 end
-                // 讓速度自然衰減 (摩擦力)
+                // 讓速度自然衰減
                 speed <= target_speed; 
                 speed_delay <= speed_delay + 1;
             end
@@ -217,7 +207,7 @@ module PhysicsEngine #(
             // B. 發生撞車
             else if (is_car_hit) begin
                 hit_cd_cnt <= HIT_COOLDOWN_TIME;
-                // 簡單的反彈邏輯
+                // 反彈邏輯
                 if(hit_rf || hit_rr) begin // 被撞屁股或側面
                     speed <= 10'd3;
                 end else begin // 正面撞擊
@@ -228,7 +218,7 @@ module PhysicsEngine #(
                 // 撞擊當下位置不更新 (避免黏住)
             end
             
-            // C. 發生撞牆
+            //撞牆
             else if (wall_hit_f) begin
                speed<=-10'd3;
                hit_cd_cnt=10'd20;
@@ -239,12 +229,11 @@ module PhysicsEngine #(
                hit_cd_cnt=10'd20;
                speed_delay<=0;
             end
-            // D. 正常行駛
+            //正常行駛
             else begin
                 speed <= target_speed;
                 speed_delay <= speed_delay + 1;
                 if (speed != 0) begin
-                    // 這是唯一的乘法器，保留給位移運算
                     pos_x_accum <= pos_x_accum + ((speed * unit_x) >>> 2);
                     pos_y_accum <= pos_y_accum + ((speed * unit_y) >>> 2);
                 end
