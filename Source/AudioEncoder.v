@@ -20,6 +20,9 @@ module AudioEncoder (
 
     input wire [2:0] state, // From State Encoder
 
+    input wire [1:0] p1_flag_order,
+    input wire [1:0] p2_flag_order,
+
     output wire audio_mclk,
     output wire audio_lrck,
     output wire audio_sck,
@@ -28,9 +31,14 @@ module AudioEncoder (
 
     /* [Parameters Definition] */
     localparam SECOND = 100_000_000;
-    localparam DIV_A4   = 22'd113636; // 440 Hz
-    localparam DIV_A5   = 22'd56818;  // 880 Hz
-    localparam DIV_MUTE = 22'h3FFFFF; // Muted (low frequency)
+    localparam DIV_C4   = 22'd190_840; // 262 Hz
+    localparam DIV_D4   = 22'd170_068; // 294 Hz
+    localparam DIV_E4   = 22'd151_515; // 330 Hz
+    localparam DIV_F4   = 22'd143_266; // 349 Hz
+    localparam DIV_G4   = 22'd127_551; // 392 Hz
+    localparam DIV_A4   = 22'd113_636; // 440 Hz
+    localparam DIV_A5   = 22'd56_818;  // 880 Hz
+    localparam DIV_MUTE = 22'h3FFFFF;  // Muted (low frequency)
 
     /* [States] */
     localparam IDLE      = 3'd0;
@@ -43,7 +51,7 @@ module AudioEncoder (
 
     localparam BEEP_FREQ = 100000;
 
-    /* [I. State Processing] */
+    /* [State Processing] */
     reg  [2:0] prev_state; // The previous state
     always @(posedge clk) begin
         if (rst) prev_state <= 3'd0;
@@ -52,43 +60,100 @@ module AudioEncoder (
     wire start_countdown = (prev_state == IDLE      && state == COUNTDOWN);
     wire start_racing    = (prev_state == COUNTDOWN && state == RACING);
 
+    /* [Flag Processing] */
+    reg [1:0] prev_p1_flag_order, prev_p2_flag_order;
+    always @(posedge clk) begin
+        if (rst) begin
+            prev_p1_flag_order <= 2'd0;
+            prev_p2_flag_order <= 2'd0;
+        end else begin
+            prev_p1_flag_order <= p1_flag_order;
+            prev_p2_flag_order <= p2_flag_order;
+        end
+    end
+    wire p1_checkpoint_passed = (prev_p1_flag_order != p1_flag_order);
+    wire p2_checkpoint_passed = (prev_p2_flag_order != p2_flag_order);
+
     /* [II. Local Counter] */
-    reg [28:0] local_cnt;
-    reg        go_audio_effect_played; // 3 (low), 2 (low), 1 (low), GO! (HIGH)
+    reg [28:0] local_cnt, local_cnt_2;
+    reg        go_audio_effect_playing; // 3 (low), 2 (low), 1 (low), GO! (HIGH)
+    reg        p1_checkpoint_effect_playing;
+    reg        p2_checkpoint_effect_playing;
     // reg [31:0] freq_cnt;//
     always @(posedge clk) begin
         if (rst) begin
-            local_cnt <= 0;
-            go_audio_effect_played <= 0;
+            local_cnt                    <= 0;
+            local_cnt_2                  <= 0;
+            go_audio_effect_playing      <= 0;
+            p1_checkpoint_effect_playing <= 0;
+            p2_checkpoint_effect_playing <= 0;
             
         end else begin
             if (start_racing) begin // Reset the counter and the flag!
-                local_cnt <= 0;
-                go_audio_effect_played <= 0;
+                local_cnt                    <= 0;
+                local_cnt_2                  <= 0;
+                go_audio_effect_playing      <= 1;
+                p1_checkpoint_effect_playing <= 0;
+                p2_checkpoint_effect_playing <= 0;
 
             end else begin
                 case (state)
                     IDLE: begin
-                        local_cnt <= 0;
-                        go_audio_effect_played <= 0;
+                        local_cnt                    <= 0;
+                        local_cnt_2                  <= 0;
+                        go_audio_effect_playing      <= 0;
+                        p1_checkpoint_effect_playing <= 0;
+                        p2_checkpoint_effect_playing <= 0;
                     end
                     COUNTDOWN: begin
                         if (local_cnt < SECOND) local_cnt <= local_cnt + 1;
                         else                    local_cnt <= 0;
-                        go_audio_effect_played <= 0;
+                        local_cnt_2                  <= 0;
+                        go_audio_effect_playing      <= 0;
+                        p1_checkpoint_effect_playing <= 0;
+                        p2_checkpoint_effect_playing <= 0;
                     end
                     RACING: begin
-                        if (!go_audio_effect_played && local_cnt < SECOND) begin
-                            local_cnt <= local_cnt + 1;
-                            go_audio_effect_played <= 0;
+                        if (go_audio_effect_playing) begin
+                            if (local_cnt < SECOND) begin
+                                local_cnt               <= local_cnt + 1;
+                                go_audio_effect_playing <= 1;
+                            end else begin
+                                go_audio_effect_playing <= 0;
+                                local_cnt               <= 0;
+                            end
                         end else begin
-                            go_audio_effect_played <= 1;
-                            local_cnt <= 0;
+                            // P1 Checkpoint sound effect
+                            if (p1_checkpoint_passed) begin
+                                local_cnt                    <= 0;
+                                p1_checkpoint_effect_playing <= 1;
+                            end else if (p1_checkpoint_effect_playing && local_cnt < 29'd300_000_000) begin
+                                local_cnt                    <= local_cnt + 1; // 我相信他不會那麼快經過兩個 checkpoint 啦 :D
+                                p1_checkpoint_effect_playing <= 1;
+                            end else begin
+                                local_cnt                    <= 0;
+                                p1_checkpoint_effect_playing <= 0;
+                            end
+
+                            // P2 Checkpoint sound effect
+                            if (p2_checkpoint_passed) begin
+                                local_cnt_2                  <= 0;
+                                p2_checkpoint_effect_playing <= 1;
+                            end else if (p2_checkpoint_effect_playing && local_cnt_2 < 29'd300_000_000) begin
+                                local_cnt_2                  <= local_cnt_2 + 1;
+                                p2_checkpoint_effect_playing <= 1;
+                            end else begin
+                                local_cnt_2                  <= 0;
+                                p2_checkpoint_effect_playing <= 0;
+                            end
                         end
                     end
                     default: begin
-                        local_cnt <= 0;
-                        go_audio_effect_played <= 0;
+                        local_cnt                    <= 0;
+                        local_cnt_2                  <= 0;
+                        go_audio_effect_playing      <= 0;
+                        p1_checkpoint_effect_playing <= 0;
+                        p2_checkpoint_effect_playing <= 0;
                     end
                 endcase
             end
@@ -109,9 +174,35 @@ module AudioEncoder (
                 target_div = DIV_A4;
                 volume_ctrl = 3'b100;
             end
+
         end else if (state == RACING) begin
-            if (!go_audio_effect_played /* "go" effect yet to be played once */ && local_cnt < 28'd60_000_000) begin
+            target_div  = DIV_MUTE;
+            volume_ctrl = 3'b000;
+
+            if (go_audio_effect_playing /* "go" effect yet to be played once */ && local_cnt < SECOND) begin
                 target_div = DIV_A5;
+                volume_ctrl = 3'b100;
+            end
+
+            if (p1_checkpoint_effect_playing && local_cnt < 29'd100_000_000) begin
+                target_div  = DIV_D4;
+                volume_ctrl = 3'b100;
+            end else if (p1_checkpoint_effect_playing && local_cnt < 29'd200_000_000) begin
+                target_div  = DIV_F4;
+                volume_ctrl = 3'b100;
+            end else if (p1_checkpoint_effect_playing && local_cnt < 29'd300_000_000) begin
+                target_div  = DIV_A4;
+                volume_ctrl = 3'b100;
+            end
+
+            if (p2_checkpoint_effect_playing && local_cnt_2 < 29'd100_000_000) begin
+                target_div  = DIV_C4;
+                volume_ctrl = 3'b100;
+            end else if (p2_checkpoint_effect_playing && local_cnt_2 < 29'd200_000_000) begin
+                target_div  = DIV_E4;
+                volume_ctrl = 3'b100;
+            end else if (p2_checkpoint_effect_playing && local_cnt_2 < 29'd300_000_000) begin
+                target_div  = DIV_G4;
                 volume_ctrl = 3'b100;
             end
         end

@@ -82,8 +82,8 @@ module Top (
     wire       p2_honk;
     wire [1:0] p1_flag_order;
     wire [1:0] p2_flag_order;
-    reg [1:0] p1_color;
-    reg [1:0] p2_color;
+    reg  [1:0] p1_color;
+    reg  [1:0] p2_color;
     OperationEncoder op_encoder (
         .clk(clk), .rst(rst),
 
@@ -497,6 +497,8 @@ module Top (
     AudioEncoder audio (
         .clk(clk), .rst(rst),
         .state(state),
+        .p1_flag_order(p1_flag_order),
+        .p2_flag_order(p2_flag_order),
         .audio_mclk(audio_mclk),
         .audio_lrck(audio_lrck),
         .audio_sck(audio_sck),
