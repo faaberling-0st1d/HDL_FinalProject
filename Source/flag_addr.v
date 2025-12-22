@@ -68,9 +68,9 @@ module flag_addr (
         // -------------------------------------------------------
         if (is_active) begin
             case (target_order)
-                2'd0: use_img_right = (curr_slot == 1) ? 1'b1 : 1'b0; // ABA
-                2'd1: use_img_right = (curr_slot == 1) ? 1'b0 : 1'b1; // BAB
-                2'd2: use_img_right = (curr_slot == 2) ? 1'b1 : 1'b0; // AAB
+                2'd0: use_img_right = 1'b0; // ABA
+                2'd1: use_img_right = (curr_slot == 0) ? 1'b1 : 1'b0; // BAB
+                2'd2: use_img_right = (curr_slot == 2) ? 1'b0 : 1'b1; // AAB
                 2'd3: use_img_right = 1'b1;                           // BBB
                 default: use_img_right = 1'b0;
             endcase

@@ -84,6 +84,7 @@ module Top (
     wire       p2_honk;
     wire [1:0] p1_flag_order;
     wire [1:0] p2_flag_order;
+    wire p1_finish,p2_finish;
     OperationEncoder op_encoder (
         .clk(clk), .rst(rst),
 
@@ -119,7 +120,7 @@ module Top (
         .angle_idx(p1_degree),
         .other_f_x(P2_f_x),.other_f_y(P2_f_y),.other_r_x(P2_r_x),.other_r_y(P2_r_y),
         .my_f_x(P1_f_x),.my_f_y(P1_f_y),.my_r_x(P1_r_x),.my_r_y(P1_r_y),
-        .speed_out(p1_speed),.flag(p1_flag_order)
+        .speed_out(p1_speed),.flag(p1_flag_order),.finish(p1_finish)
     );
 
     wire [9:0] p2_speed;
@@ -135,8 +136,7 @@ module Top (
         .angle_idx(p2_degree),
         .other_f_x(P1_f_x),.other_f_y(P1_f_y),.other_r_x(P1_r_x),.other_r_y(P1_r_y),
         .my_f_x(P2_f_x),.my_f_y(P2_f_y),.my_r_x(P2_r_x),.my_r_y(P2_r_y),
-        .speed_out(p2_speed),.flag(p2_flag_order)
-    );
+        .speed_out(p2_speed),.flag(p2_flag_order),.finish(p2_finish)
   
 
     // --- 渲染變數 (Rendering Logic) ---
