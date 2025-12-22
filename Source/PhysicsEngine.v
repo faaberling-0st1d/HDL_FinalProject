@@ -30,7 +30,8 @@ module PhysicsEngine #(
     output wire [9:0] pos_y,
     output reg  [3:0] angle_idx, 
     output reg  [9:0] speed_out,
-    output reg [1:0] flag 
+    output reg [1:0] flag,
+    output reg finish
 );
     localparam HIT_COOLDOWN_TIME = 6'd30;
     
@@ -58,7 +59,6 @@ module PhysicsEngine #(
             internal_angle <= 6'd0;
             angle_idx <= 0; 
             turn_delay <= 0;
-            flag <= 2'd0;
         end else if (game_tick && state == 3'd4) begin
             if (h_code == 2'd1) begin // Left
                 if (turn_delay == 0) begin
@@ -208,6 +208,32 @@ module PhysicsEngine #(
                     pos_y_accum <= pos_y_accum + ((speed * unit_y) >>> 1);
                 end
             end
+        end
+    end
+    always@(*)begin
+        if(flag==2'd0)begin
+            if(my_f_y>23 && my_f_y<54 && my_f_x>179)begin
+                flag=3'd1;
+            end
+        end
+        else if(flag==2'd1)begin
+            if(my_f_y>195 && my_f_y<227 && my_f_x<247)begin
+                flag=3'd2;
+            end
+        end
+        else if(flag==2'd2)begin
+            if(my_f_y>190 && my_f_y<220 && my_f_x<87)begin
+                flag=3'd3;
+            end
+        end
+        else if(flag==2'd3)begin
+             if(my_f_x>20 && my_f_x<50 && my_f_y<112)begin
+                finish=1;
+            end
+        end
+        else begin
+            flag=2'd0;
+            finish=0;
         end
     end
 endmodule
