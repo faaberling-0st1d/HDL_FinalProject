@@ -323,54 +323,33 @@ module Top (
         .h_cnt(h_cnt), .v_cnt(v_cnt),
         .winning_player(winning_player),
         .is_pixel(is_win_pixel)
-    );
+    ); 
     
-    // --- Debug Layer: 繪製碰撞框 ---
-    // 假設有一個開關 sw[0] 用來切換是否顯示 Debug 框
-    // 如果你的板子沒有 sw 輸入，可以暫時寫死為 1'b1
-    
-    // 取得當前掃描點對應的「世界座標」 (這在你的地圖邏輯裡應該已經算好了)
-    // 變數名稱可能叫 map_global_x / map_global_y
-    
-    // 為了節省資源，我們只計算圓框 (Hollow Circle)
-    // 半徑平方判定: 18^2 = 324。我們畫 16^2 ~ 19^2 之間的像素，形成一個圈
-    localparam DBG_R_MIN_SQ = 10'd4;
-    localparam DBG_R_MAX_SQ = 10'd9;
+    reg is_debug_pixel;
+    localparam DBG_R_MIN_SQ = 10'd25; 
+    localparam DBG_R_MAX_SQ = 10'd36;
 
-  // --- Debug Layer: 繪製碰撞框 (已優化為矩形) ---
-    // 說明：為了配合 PhysicsEngine 的 AABB 判定，這裡改畫空心正方形
-    // 優點：完全移除乘法器 (dx*dx)，只用減法，解決 Timing 問題
-    
-    // 定義碰撞框半徑 (Half-Size)
-    // 數值 3 代表從中心往外 3 pixel，總寬度 7 pixel (與物理引擎一致)
-    localparam DBG_BOX_SIZE = 10'd3; 
-
-    // 定義函數：檢查當前像素是否在「空心方形」的邊框上
-    function is_on_box;
-        input [9:0] px, py; // 當前像素世界座標 (Pixel World Pos)
-        input [9:0] cx, cy; // 碰撞中心座標 (Collider Center)
-        reg [9:0] abs_dx, abs_dy;
+    function is_on_circle;
+        input [9:0] px, py; // 當前像素世界座標
+        input [9:0] cx, cy; // 圓心座標
+        reg signed [10:0] dx, dy;
+        reg [21:0] d_sq;
         begin
-            // 1. 計算絕對距離 (使用 MUX 實現 abs，比乘法快且省資源)
-            abs_dx = (px >= cx) ? (px - cx) : (cx - px);
-            abs_dy = (py >= cy) ? (py - cy) : (cy - py);
-
-            // 2. 判定邏輯：
-            // (距離 <= 外徑) AND (距離 > 內徑) -> 形成空心邊框
-            // 這裡設定：在 3x3 範圍內，但排除掉中心的 1x1 範圍，形成一個稍微厚一點的框
-            is_on_box = (abs_dx <= DBG_BOX_SIZE && abs_dy <= DBG_BOX_SIZE) && 
-                        (abs_dx > (DBG_BOX_SIZE - 1) || abs_dy > (DBG_BOX_SIZE - 1));
+            dx = $signed({1'b0, px}) - $signed({1'b0, cx});
+            dy = $signed({1'b0, py}) - $signed({1'b0, cy});
+            d_sq = (dx*dx) + (dy*dy);
+            is_on_circle = (d_sq >= DBG_R_MIN_SQ && d_sq <= DBG_R_MAX_SQ);
         end
     endfunction
 
-    // 呼叫函數繪製四個碰撞點 (P1前後、P2前後)
-    wire p1_f_draw = is_on_box(map_global_x, map_global_y, P1_f_x, P1_f_y);
-    wire p1_r_draw = is_on_box(map_global_x, map_global_y, P1_r_x, P1_r_y);
-    wire p2_f_draw = is_on_box(map_global_x, map_global_y, P2_f_x, P2_f_y);
-    wire p2_r_draw = is_on_box(map_global_x, map_global_y, P2_r_x, P2_r_y);
-
-    // 整合訊號
-    wire is_debug_pixel = (p1_f_draw || p1_r_draw || p2_f_draw || p2_r_draw);
+    wire p1_f_draw = is_on_circle(map_global_x, map_global_y, P1_f_x, P1_f_y);
+    wire p1_r_draw = is_on_circle(map_global_x, map_global_y, P1_r_x, P1_r_y);
+    wire p2_f_draw = is_on_circle(map_global_x, map_global_y, P2_f_x, P2_f_y);
+    wire p2_r_draw = is_on_circle(map_global_x, map_global_y, P2_r_x, P2_r_y);
+    
+    always @(*) begin
+        is_debug_pixel = (p1_f_draw || p1_r_draw || p2_f_draw || p2_r_draw);
+    end
 
    
     wire [13:0] flag_addr;
@@ -408,6 +387,21 @@ module Top (
         .start_color_index(lobby_code),
         .rgb_data(lobby_data)
     );
+
+    wire [16:0] finish_addr = (v_cnt << 6) + (v_cnt << 4) + (h_cnt>>2);
+    wire [3:0] finish_code;
+    wire [11:0] finish_data;
+    blk_mem_gen_4 finish_ram(
+        .clka(clk_25MHz),
+        .addra(finish_addr),
+        .douta(finish_code)
+    );
+    final_color_decoder finish_decoder(
+        .final_color_index(finish_code),
+        .rgb_data(finish_data)
+    );
+
+
     //最終顏色輸出
     reg [11:0] final_color;
     
@@ -422,6 +416,8 @@ module Top (
             else begin
                 final_color = 12'hBEB;
             end
+        end else if(state==FINISH)begin
+            final_color= finish_data;
         end else if (is_hud_separator)begin
             final_color = SEPARATOR_COLOR;
 
