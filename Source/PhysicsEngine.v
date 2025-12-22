@@ -286,7 +286,7 @@ module PhysicsEngine #(
                         end
                     end
                     2'd3: begin
-                        if(my_f_x>40 && my_f_x<100 && my_f_y<112)begin
+                        if(my_f_x>40 && my_f_x<100 && my_f_y<227)begin
                             finish<=1;
                         end
                     end

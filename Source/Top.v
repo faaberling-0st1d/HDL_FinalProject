@@ -105,7 +105,7 @@ module Top (
     wire [9:0] P1_f_x; wire [9:0] P1_f_y; wire [9:0] P1_r_x; wire [9:0] P1_r_y;
     wire [9:0] P2_f_x;wire [9:0] P2_f_y; wire [9:0] P2_r_x;wire [9:0] P2_r_y;
     PhysicsEngine #(
-        .START_X(8'd15), .START_Y(8'd125)
+        .START_X(8'd55), .START_Y(8'd240)
     ) p1_engine (
         .clk(clk), .rst(rst),
 
@@ -122,7 +122,7 @@ module Top (
 
     wire [9:0] p2_speed;
     PhysicsEngine #(
-        .START_X(8'd25), .START_Y(8'd125)
+        .START_X(8'd85), .START_Y(8'd240)
     ) p2_engine (
         .clk(clk), .rst(rst),
 
@@ -183,7 +183,7 @@ module Top (
     
     // 地圖的世界座標
     wire [9:0] map_global_x = (screen_rel_x >> 2) + (my_world_x - 40); 
-    wire [9:0] map_global_y = (v_cnt >> 2) + (my_world_y - 60);
+    wire [9:0] map_global_y = (v_cnt >> 2) + (my_world_y - 45);
     wire is_out_of_map = (map_global_x >= MAP_WIDTH) || (map_global_y >= MAP_HEIGHT);
 
    always @(*) begin
@@ -401,6 +401,16 @@ module Top (
         .rgb_data(finish_data)
     );
 
+    //自定義白色格子邏輯
+    wire is_area_A = (map_global_x >= 40 && map_global_x <= 55) &&
+                     (map_global_y >= 210 && map_global_y <= 218);
+    wire is_area_B = (map_global_x >= 55 && map_global_x <= 70) &&
+                     (map_global_y >= 218 && map_global_y <= 227);
+    wire is_area_C = (map_global_x >= 70 && map_global_x <= 85) &&
+                     (map_global_y >= 210 && map_global_y <= 218);
+    wire is_area_D = (map_global_x >= 85 && map_global_x <= 100) &&
+                     (map_global_y >= 218 && map_global_y <= 227);                                  
+    wire is_white_grid = is_area_A || is_area_B || is_area_C || is_area_D;
 
     //最終顏色輸出
     reg [11:0] final_color;
@@ -462,32 +472,24 @@ module Top (
             else if (is_out_of_map) 
                 final_color = OUT_BOUND_COLOR;
             // 最後顯示地圖背景
+            else if (is_white_grid)final_color = 12'hFFF;
             else 
                 final_color = data_map;
         end
     end
-    // ==========================================
-    // [新方法] 簡單暴力的地圖顏色抓取 (Screen Center Snatch)
-    // ==========================================
-    
-    // 雖然 BRAM 讀取有 2 clock 延遲，但地圖格子通常很大，
-    // 所以直接抓螢幕中心點 (160, 240) 的顏色通常是準確的。
-    
+    //地圖顏色抓取
     always @(posedge clk_25MHz) begin
         if (rst) begin
             p1_color <= 2'd0;
             p2_color <= 2'd0;
         end else begin
-            // --- 抓取 P1 地板顏色 ---
-            // 左螢幕中心點 (h=160, v=240)
-            // 這裡抓 map_color (它是 BRAM 輸出的 index，例如 0~15)
-            if (h_cnt == 10'd160 && v_cnt == 10'd240) begin
+            // 抓取 P1 (左畫面中心 X=160, 車子中心 Y=180)
+            if (h_cnt == 10'd160 && v_cnt == 10'd180) begin
                 p1_color <= map_color; 
             end
             
-            // --- 抓取 P2 地板顏色 ---
-            // 右螢幕中心點 (h=160+320=480, v=240)
-            else if (h_cnt == 10'd480 && v_cnt == 10'd240) begin
+            // 抓取 P2 (右畫面中心 X=480, 車子中心 Y=180)
+            else if (h_cnt == 10'd480 && v_cnt == 10'd180) begin
                 p2_color <= map_color;
             end
         end
