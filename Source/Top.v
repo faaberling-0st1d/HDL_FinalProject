@@ -76,11 +76,9 @@ module Top (
     // 從鍵盤接收訊息
     wire [1:0] p1_h_code;
     wire [1:0] p1_v_code;
-    wire       p1_boost;
     wire       p1_honk;
     wire [1:0] p2_h_code;
     wire [1:0] p2_v_code;
-    wire       p2_boost;
     wire       p2_honk;
     wire [1:0] p1_flag_order;
     wire [1:0] p2_flag_order;
@@ -97,11 +95,9 @@ module Top (
         .state(state), // Current state from the FSM (StateEncoder)
     
         .p1_h_code(p1_h_code), .p1_v_code(p1_v_code),
-        .p1_boost(p1_boost),
         .p1_honk(p1_honk),
 
         .p2_h_code(p2_h_code), .p2_v_code(p2_v_code),
-        .p2_boost(p2_boost),
         .p2_honk(p2_honk)
     );
 

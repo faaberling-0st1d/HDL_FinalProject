@@ -16,7 +16,7 @@ module PhysicsEngine #(
     input [2:0] state,
     input [1:0] h_code, 
     input [1:0] v_code, 
-    input boost,       
+    input [3:0] color,  
     
     // 對手碰撞框中心
     input [9:0] other_f_x, input [9:0] other_f_y, 
@@ -170,10 +170,11 @@ module PhysicsEngine #(
         // 加減速邏輯
         if(speed_delay == 0) begin
             if (v_code == 2'd1 /*UP*/) begin
-                if (boost && speed < 15)      target_speed = speed + 1;
-                else if (!boost && speed < 6) target_speed = speed + 1;
+                if (color!=6 && speed < 6)      target_speed = speed + 1;
+                else if (speed < 3) target_speed = speed + 1;
             end else if (v_code == 2'd2 /*DOWN*/) begin
-                if (speed > -4) target_speed = speed - 1;
+                if (color!=6 && speed > -4) target_speed = speed - 1;
+                else if (speed >-2) target_speed = speed - 1;
             end else begin // Friction
                 if (speed > 0) target_speed = speed - 1;
                 else if (speed < 0) target_speed = speed + 1;
