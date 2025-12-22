@@ -74,7 +74,7 @@ module PhysicsEngine #(
                 angle_idx      <= 0; 
                 turn_delay     <= 0;
 
-            end else if (game_tick && state == 3'd4) begin
+            end else if (game_tick && state == 3'd4 && !finish) begin
                 if (h_code == 2'd1) begin // Left
                     if (turn_delay == 0) begin
                         internal_angle <= internal_angle - 1;
@@ -203,7 +203,7 @@ module PhysicsEngine #(
             speed_delay <= 0;
             hit_cd_cnt  <= 0;
 
-        end else if (game_tick && state == RACING) begin
+        end else if (game_tick && state == RACING && !finish) begin
             // A. 冷卻中 (剛撞完)
             if (hit_cd_cnt > 0) begin
                 hit_cd_cnt <= hit_cd_cnt - 1;
