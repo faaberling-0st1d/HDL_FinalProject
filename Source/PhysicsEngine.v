@@ -9,7 +9,7 @@ module PhysicsEngine #(
     
     // [優化] 改用矩形半寬 (Box Half-Width) 代替圓半徑平方
     // 原本半徑是 3 (平方9)，這裡設 3 代表判定框為 6x6
-    parameter COLLISION_SIZE = 10'd3 
+    parameter COLLISION_SIZE = 10'd9 
 )(
     input clk,
     input rst,
@@ -103,26 +103,29 @@ module PhysicsEngine #(
     end
     // --- 3. 碰撞檢測 (Box Collision) ---
     // [優化] 使用矩形碰撞取代圓形，移除所有乘法器
-    function check_hit_box;
+       function check_hit_func;
         input [9:0] x1, y1, x2, y2;
-        reg [9:0] abs_dx, abs_dy;
+        reg signed [10:0] dx, dy;
+        reg [21:0] d_sq;
         begin
-            abs_dx = (x1 > x2) ? (x1 - x2) : (x2 - x1);
-            abs_dy = (y1 > y2) ? (y1 - y2) : (y2 - y1);
-            // 兩車距離小於 COLLISION_SIZE * 2 (兩邊半徑和)
-            check_hit_box = (abs_dx < COLLISION_SIZE) && (abs_dy < COLLISION_SIZE);
+            dx = $signed({1'b0, x1}) - $signed({1'b0, x2});
+            dy = $signed({1'b0, y1}) - $signed({1'b0, y2});
+            d_sq = (dx*dx) + (dy*dy);
+            check_hit_func = (d_sq < (COLLISION_SIZE<<<2));
         end
     endfunction
+    reg hit_ff, hit_fr, hit_rf, hit_rr;
+    always@(posedge clk)begin
+        hit_ff = check_hit_func(my_f_x, my_f_y, other_f_x, other_f_y);
+        hit_fr = check_hit_func(my_f_x, my_f_y, other_r_x, other_r_y);
+        hit_rf = check_hit_func(my_r_x, my_r_y, other_f_x, other_f_y);
+        hit_rr = check_hit_func(my_r_x, my_r_y, other_r_x, other_r_y);
+    end
 
-    wire hit_ff = check_hit_box(my_f_x, my_f_y, other_f_x, other_f_y);
-    wire hit_fr = check_hit_box(my_f_x, my_f_y, other_r_x, other_r_y);
-    wire hit_rf = check_hit_box(my_r_x, my_r_y, other_f_x, other_f_y);
-    wire hit_rr = check_hit_box(my_r_x, my_r_y, other_r_x, other_r_y);
-    
     wire is_car_hit = (hit_ff | hit_fr | hit_rf | hit_rr);
-
-    wire wall_hit_f = (my_f_x < 10 || my_f_x > MAP_W - 10 || my_f_y < 10 || my_f_y > MAP_H - 10);
-    wire wall_hit_r = (my_r_x < 10 || my_r_x > MAP_W - 10 || my_r_y < 10 || my_r_y > MAP_H - 10);
+    
+    wire wall_hit_f = (my_f_x < 6 || my_f_x > MAP_W - 6 || my_f_y < 6 || my_f_y > MAP_H - 6);
+    wire wall_hit_r = (my_r_x < 6 || my_r_x > MAP_W - 6 || my_r_y < 6 || my_r_y > MAP_H - 6);
     wire is_wall_hit = wall_hit_f | wall_hit_r;
 
     // --- 4. 下個狀態邏輯 (Combinational) ---
@@ -179,9 +182,8 @@ module PhysicsEngine #(
             else if (is_car_hit) begin
                 hit_cd_cnt <= HIT_COOLDOWN_TIME;
                 // 簡單的反彈邏輯
-                if(hit_rf || hit_rr) begin // 被撞屁股或側面
-                    if (speed >= 0) speed <= speed + 10'd3;
-                    else speed <= speed - 10'd3;
+                if(hit_rf) begin // 被撞屁股或側面
+                    speed <= speed + 10'd3;
                 end else begin // 正面撞擊
                     if (speed >= 0) speed <= -10'd3;
                     else speed <= 10'd3;
@@ -210,20 +212,20 @@ module PhysicsEngine #(
             end
         end
     end
-    always@(*)begin
+    always@(posedge clk)begin
         if(flag==2'd0)begin
-            if(my_f_y>23 && my_f_y<54 && my_f_x>179)begin
-                flag=3'd1;
+            if(my_f_y>23 && my_f_y<54 && my_f_x>179 && my_f_x<184)begin
+                flag=2'd1;
             end
         end
         else if(flag==2'd1)begin
-            if(my_f_y>195 && my_f_y<227 && my_f_x<247)begin
-                flag=3'd2;
+            if(my_f_y>195 && my_f_y<227 && my_f_x<247 && my_f_x>242)begin
+                flag=2'd2;
             end
         end
         else if(flag==2'd2)begin
-            if(my_f_y>190 && my_f_y<220 && my_f_x<87)begin
-                flag=3'd3;
+            if(my_f_y>190 && my_f_y<220 && my_f_x<87 && my_f_x>82)begin
+                flag=2'd3;
             end
         end
         else if(flag==2'd3)begin
