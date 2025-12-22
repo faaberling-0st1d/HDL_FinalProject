@@ -29,6 +29,15 @@ module PhysicsEngine #(
     output reg finish
 );
     localparam HIT_COOLDOWN_TIME = 6'd30;
+
+    /* [States Look-up Table] */
+    localparam IDLE      = 3'd0;
+    localparam SETTING   = 3'd1;
+    // localparam SYNCING = 3'd2;
+    localparam COUNTDOWN = 3'd3;
+    localparam RACING    = 3'd4;
+    localparam PAUSE     = 3'd5;
+    localparam FINISH    = 3'd6;
     
     // --- 0. Game Tick (120Hz) ---
     localparam TICK_LIMIT = CLK_FREQ / 120;
@@ -54,21 +63,33 @@ module PhysicsEngine #(
             internal_angle <= 6'd0;
             angle_idx <= 0; 
             turn_delay <= 0;
-        end else if (game_tick && state == 3'd4) begin
-            if (h_code == 2'd1) begin // Left
-                if (turn_delay == 0) begin
-                    internal_angle <= internal_angle - 1;
-                    turn_delay <= 2; 
-                end else turn_delay <= turn_delay - 1;
-            end else if (h_code == 2'd2) begin // Right
-                if (turn_delay == 0) begin
-                    internal_angle <= internal_angle + 1;
-                    turn_delay <= 2;
-                end else turn_delay <= turn_delay - 1;
-            end else begin
-                 turn_delay <= 0;
+        end else begin
+            if (state == IDLE) begin // Initialize in IDLE state.
+                internal_angle <= 6'd0;
+                angle_idx      <= 0; 
+                turn_delay     <= 0;
+
+            end else if (game_tick && state == 3'd4) begin
+                if (h_code == 2'd1) begin // Left
+                    if (turn_delay == 0) begin
+                        internal_angle <= internal_angle - 1;
+                        turn_delay <= 2; 
+                    end else turn_delay <= turn_delay - 1;
+                end else if (h_code == 2'd2) begin // Right
+                    if (turn_delay == 0) begin
+                        internal_angle <= internal_angle + 1;
+                        turn_delay <= 2;
+                    end else turn_delay <= turn_delay - 1;
+                end else begin
+                    turn_delay <= 0;
+                end
+                angle_idx <= internal_angle[5:2];
+
+            end else begin // Retain the values in other states, other conditions.
+                internal_angle <= internal_angle;
+                angle_idx      <= angle_idx; 
+                turn_delay     <= turn_delay;
             end
-            angle_idx <= internal_angle[5:2]; 
         end
     end
 
@@ -149,6 +170,8 @@ module PhysicsEngine #(
         end
     end
 
+    
+
     // --- 5. 狀態更新 (Sequential) ---
     always @(posedge clk) begin
         if (rst) begin
@@ -157,91 +180,113 @@ module PhysicsEngine #(
             speed <= 0;
             speed_delay <= 0;
             hit_cd_cnt <= 0;
-        end else if (game_tick && state == 3'd4) begin
-            
-            // A. 發生撞牆 (優先權最高，強制校正位置)
-            // [關鍵修正] 使用位置鉗制 (Clamping) 防止穿牆
-            if (is_wall_hit) begin
-                hit_cd_cnt <= 6'd20; 
-                speed_delay <= 0;
-                
-                // 1. 反彈速度
-                if (speed >= 0) speed <= -10'd2;
-                else            speed <= 10'd2;
 
-                // 2. 強制拉回牆內 (Clamping)
-                // 必須判斷是車頭還是車尾撞牆，這裡做簡單的邊界限制
-                // 這裡直接操作 accum，把車子「推」離牆壁 6 個像素
-                if (hit_left)        pos_x_accum <= (10'd7 << 10); 
-                else if (hit_right)  pos_x_accum <= ((MAP_W - 7) << 10);
-                
-                if (hit_top)         pos_y_accum <= (10'd7 << 10);
-                else if (hit_bottom) pos_y_accum <= ((MAP_H - 7) << 10);
-            end
-            
-            // B. 發生撞車
-            else if (is_car_hit) begin
-                hit_cd_cnt <= HIT_COOLDOWN_TIME;
-                if(hit_rf || hit_rr) speed <= 10'd3;       // 屁股撞: 向前彈
-                else                 speed <= (speed >= 0) ? -10'd3 : 10'd3; // 頭撞: 向後彈
+        end else begin
+            if (state == IDLE) begin // Initialize in IDLE state.
+                pos_x_accum <= START_X << 10;
+                pos_y_accum <= START_Y << 10;
+                speed <= 0;
                 speed_delay <= 0;
-            end
-            
-            // C. 冷卻中
-            else if (hit_cd_cnt > 0) begin
-                hit_cd_cnt <= hit_cd_cnt - 1;
-                if (speed != 0) begin
-                    // [修正點] 120Hz 降速：原本 >>> 1 改成 >>> 2
-                    pos_x_accum <= pos_x_accum + ((speed * unit_x) >>> 2);
-                    pos_y_accum <= pos_y_accum + ((speed * unit_y) >>> 2);
+                hit_cd_cnt <= 0;
+
+            end else if (game_tick && state == 3'd4) begin
+                // A. 發生撞牆 (優先權最高，強制校正位置)
+                // [關鍵修正] 使用位置鉗制 (Clamping) 防止穿牆
+                if (is_wall_hit) begin
+                    hit_cd_cnt <= 6'd20; 
+                    speed_delay <= 0;
+                    
+                    // 1. 反彈速度
+                    if (speed >= 0) speed <= -10'd2;
+                    else            speed <= 10'd2;
+
+                    // 2. 強制拉回牆內 (Clamping)
+                    // 必須判斷是車頭還是車尾撞牆，這裡做簡單的邊界限制
+                    // 這裡直接操作 accum，把車子「推」離牆壁 6 個像素
+                    if (hit_left)        pos_x_accum <= (10'd7 << 10); 
+                    else if (hit_right)  pos_x_accum <= ((MAP_W - 7) << 10);
+                    
+                    if (hit_top)         pos_y_accum <= (10'd7 << 10);
+                    else if (hit_bottom) pos_y_accum <= ((MAP_H - 7) << 10);
                 end
-                speed <= target_speed; 
-                speed_delay <= speed_delay + 1;
-            end
-            
-            // D. 正常行駛
-            else begin
-                speed <= target_speed;
-                speed_delay <= speed_delay + 1;
-                if (speed != 0) begin
-                    // [修正點] 120Hz 降速：原本 >>> 1 改成 >>> 2
-                    pos_x_accum <= pos_x_accum + ((speed * unit_x) >>> 2);
-                    pos_y_accum <= pos_y_accum + ((speed * unit_y) >>> 2);
+                
+                // B. 發生撞車
+                else if (is_car_hit) begin
+                    hit_cd_cnt <= HIT_COOLDOWN_TIME;
+                    if(hit_rf || hit_rr) speed <= 10'd3;       // 屁股撞: 向前彈
+                    else                 speed <= (speed >= 0) ? -10'd3 : 10'd3; // 頭撞: 向後彈
+                    speed_delay <= 0;
                 end
+                
+                // C. 冷卻中
+                else if (hit_cd_cnt > 0) begin
+                    hit_cd_cnt <= hit_cd_cnt - 1;
+                    if (speed != 0) begin
+                        // [修正點] 120Hz 降速：原本 >>> 1 改成 >>> 2
+                        pos_x_accum <= pos_x_accum + ((speed * unit_x) >>> 2);
+                        pos_y_accum <= pos_y_accum + ((speed * unit_y) >>> 2);
+                    end
+                    speed <= target_speed; 
+                    speed_delay <= speed_delay + 1;
+                end
+                
+                // D. 正常行駛
+                else begin
+                    speed <= target_speed;
+                    speed_delay <= speed_delay + 1;
+                    if (speed != 0) begin
+                        // [修正點] 120Hz 降速：原本 >>> 1 改成 >>> 2
+                        pos_x_accum <= pos_x_accum + ((speed * unit_x) >>> 2);
+                        pos_y_accum <= pos_y_accum + ((speed * unit_y) >>> 2);
+                    end
+                end
+
+            end else begin // Retain the values in other conditions.
+                pos_x_accum <= pos_x_accum;
+                pos_y_accum <= pos_y_accum;
+                speed       <= speed;
+                speed_delay <= speed_delay;
+                hit_cd_cnt  <= hit_cd_cnt;
             end
         end
     end
-
+    
     // --- 6. Checkpoint 判定 (Sequential Logic) ---
     always @(posedge clk) begin
         if (rst) begin
             flag <= 2'd0;
             finish <= 0;
-        end 
-        else if (state == 3'd4) begin
-            // [修正點] 這裡原本用 = (阻塞賦值)，改為 <= (非阻塞賦值)
-            // 另外建議稍微放寬一點判定區間，以免 120Hz 速度快時跳過
-            
-            if(flag == 2'd0) begin
-                // 放寬判定範圍，例如 +/- 5 pixel
-                if(my_f_y > 23 && my_f_y < 54 && my_f_x > 175 && my_f_x < 185) begin
-                    flag <= 2'd1;
+
+        end else begin
+            if (state == 3'd4) begin
+                // [修正點] 這裡原本用 = (阻塞賦值)，改為 <= (非阻塞賦值)
+                // 另外建議稍微放寬一點判定區間，以免 120Hz 速度快時跳過
+                
+                if(flag == 2'd0) begin
+                    // 放寬判定範圍，例如 +/- 5 pixel
+                    if(my_f_y > 23 && my_f_y < 54 && my_f_x > 175 && my_f_x < 185) begin
+                        flag <= 2'd1;
+                    end
                 end
-            end
-            else if(flag == 2'd1) begin
-                if(my_f_y > 195 && my_f_y < 227 && my_f_x < 247 && my_f_x > 242) begin
-                    flag <= 2'd2;
+                else if(flag == 2'd1) begin
+                    if(my_f_y > 195 && my_f_y < 227 && my_f_x < 247 && my_f_x > 242) begin
+                        flag <= 2'd2;
+                    end
                 end
-            end
-            else if(flag == 2'd2) begin
-                if(my_f_y > 190 && my_f_y < 220 && my_f_x < 87 && my_f_x > 82) begin
-                    flag <= 2'd3;
+                else if(flag == 2'd2) begin
+                    if(my_f_y > 190 && my_f_y < 220 && my_f_x < 87 && my_f_x > 82) begin
+                        flag <= 2'd3;
+                    end
                 end
-            end
-            else if(flag == 2'd3) begin
-                if(my_f_x > 20 && my_f_x < 50 && my_f_y < 112) begin
-                    finish <= 1;
+                else if(flag == 2'd3) begin
+                    if(my_f_x > 20 && my_f_x < 50 && my_f_y < 112) begin
+                        finish <= 1;
+                    end
                 end
+            end else begin
+                // Reset the values in other states.
+                flag   <= 2'd0;
+                finish <= 0;
             end
         end
     end

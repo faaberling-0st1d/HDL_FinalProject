@@ -40,16 +40,16 @@ module Top (
     wire [9:0] p2_world_x, p2_world_y;
     wire [3:0] p1_degree,  p2_degree;
 
-
     // --- 模組實例化 ---
     wire [2:0] state;
     wire [1:0] countdown_val;
+    wire       p1_finish,  p2_finish; // 移到這邊，State Encoder 可能需要用。參考 PhysicsEngine。
     StateEncoder state_encoder (
         .clk(clk), .rst(rst),
         .start_btn(start_btn),     // Game Starting Button
         .setting_btn(setting_btn), // Game Setting Button
         .pause_btn(pause_btn),     // Game Pause Button (for state COUNTDOWN & RACING)
-        .is_game_end(0), // Whether the racing game has ended. (遊戲結束)
+        .is_game_end(p1_finish | p2_finish), // Whether the racing game has ended. (遊戲結束)
         .state(state),
         .countdown_val(countdown_val)
     );
@@ -84,7 +84,7 @@ module Top (
     wire       p2_honk;
     wire [1:0] p1_flag_order;
     wire [1:0] p2_flag_order;
-    wire p1_finish,p2_finish;
+    
     OperationEncoder op_encoder (
         .clk(clk), .rst(rst),
 

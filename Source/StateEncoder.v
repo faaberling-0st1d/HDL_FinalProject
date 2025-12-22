@@ -77,14 +77,14 @@ module StateEncoder (
                     next_countdown_cnt = 29'd0;
 
                 // Transition to state SETTING if setting button pressed.
-                end else if (setting_btn) begin
+                end else if (setting_op) begin
                     next_state = SETTING;
                 end
             end
 
             SETTING: begin
                 // Return to IDLE (game lobby) if the setting button is pressed again.
-                if (setting_btn) begin
+                if (setting_op) begin
                     next_state = IDLE;
                 end
             end
@@ -112,14 +112,14 @@ module StateEncoder (
 
             PAUSE: begin
                 // Return to the previous "normal" state if the user press the pause button again.
-                if (pause_btn) begin
+                if (pause_op) begin
                     next_state = prev_main_state;
                 end
             end
 
             FINISH: begin
                 // Press start button to restart the game from state IDLE.
-                if (start_btn) begin
+                if (start_op) begin
                     next_state = IDLE;
                 end
             end
