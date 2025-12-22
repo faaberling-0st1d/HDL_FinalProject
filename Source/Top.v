@@ -224,8 +224,7 @@ module Top (
     reg [16:0] addr_car_enemy;
     wire [11:0] data_car_enemy;
 
-    // 1. [自己的車] (固定在畫面中心)
-    // 螢幕中心 (160, 240), 車寬 75 -> 範圍 X[123, 197], Y[203, 277]
+    //自己的車 (固定在畫面中心)
     wire is_self_box = (screen_rel_x >= 123 && screen_rel_x <= 197) && 
                        (v_cnt >= 143 && v_cnt <= 217);
     
@@ -245,32 +244,29 @@ module Top (
     wire signed [12:0] enemy_center_x = 160 + diff_x;
     wire signed [12:0] enemy_center_y = 180 + diff_y;
     
-    // 敵車判定框 (Box Check)
+    // 敵車判定框
     wire signed [12:0] screen_x_signed = $signed({1'b0, screen_rel_x}); // 轉成 13-bit signed
     wire signed [12:0] screen_y_signed = $signed({1'b0, v_cnt});        // 轉成 13-bit signed
     wire signed [12:0] car_left   = enemy_center_x - 13'd37;
     wire signed [12:0] car_right  = enemy_center_x + 13'd37;
     wire signed [12:0] car_top    = enemy_center_y - 13'd37;
     wire signed [12:0] car_bottom = enemy_center_y + 13'd37;
-    // 敵車判定框 (使用 Signed 比較)
-   wire is_enemy_box = (screen_x_signed >= car_left) && (screen_x_signed <= car_right) &&
+   
+    wire is_enemy_box = (screen_x_signed >= car_left) && (screen_x_signed <= car_right) &&
                          (screen_y_signed >= car_top)  && (screen_y_signed <= car_bottom);
     // 計算 Enemy 旋轉位址
-   wire signed [12:0] tex_x_calc = screen_x_signed - car_left;
+    wire signed [12:0] tex_x_calc = screen_x_signed - car_left;
     wire signed [12:0] tex_y_calc = screen_y_signed - car_top;
 
-    // 5. 連接到 Address Generator
     wire [16:0] calc_addr_enemy;
     
     car_addr addr_logic_enemy (
         .degree(enemy_degree),
-        // 只取低位元傳入，因為 car_addr 只需要 0~74 的輸入
         .pixel_x(tex_x_calc[9:0]), 
         .pixel_y(tex_y_calc[9:0]),
         .rom_addr(calc_addr_enemy)
     );
 
-    // 分配位址給 BRAM
     always @(*) begin
         addr_car_self  = is_self_box  ? calc_addr_self  : 17'd0;
         addr_car_enemy = is_enemy_box ? calc_addr_enemy : 17'd0;
@@ -284,15 +280,12 @@ module Top (
     color_decoder car_a_decode(.color_index(car_self_color),.rgb_data(data_car_self),.is_b(!is_left_screen));
     color_decoder car_b_decode(.color_index(car_enemy_color),.rgb_data(data_car_enemy),.is_b(is_left_screen));
     
-    // --- 小地圖邏輯 (Mini-map Logic) ---
-
-    // 2. 將螢幕座標還原回「地圖座標」(反向縮放)
-    // 這樣就可以直接跟 p1_world_x (0~320) 做比較
+    //小地圖邏輯
+    //將螢幕座標反向縮放
     wire [9:0] mm_scan_x = (h_cnt - 240) << 2; 
     wire [9:0] mm_scan_y = (v_cnt - 360) << 2;
 
-    // 3. 判斷是否為車子的點 (點的大小設為 8x8 的世界座標範圍，約等於小地圖上的 4x4 像素)
-    // 這裡使用簡單的矩形判斷，abs 邏輯
+    //判斷是否為車子的點 (點的大小設為 8x8 的世界座標範圍，約等於小地圖上的 4x4 像素)
     wire is_p1_dot = (mm_scan_x >= p1_world_x - 6 && mm_scan_x <= p1_world_x + 6) &&
                      (mm_scan_y >= p1_world_y - 6 && mm_scan_y <= p1_world_y + 6);
 
@@ -355,20 +348,20 @@ module Top (
     wire [13:0] flag_addr;
     wire        flag_active;
     wire [3:0]  flag_code;
-    wire [11:0] flag_data;   // 從 BRAM 讀出來的 RGB
+    wire [11:0] flag_data;
     flag_addr flag_gen (
         .h_cnt     (h_cnt),
         .v_cnt     (v_cnt),
-        .p1_order  (p1_flag_order), // 接你的暫存器
-        .p2_order  (p2_flag_order), // 接你的暫存器
+        .p1_order  (p1_flag_order), 
+        .p2_order  (p2_flag_order), 
         .mem_addr  (flag_addr),
         .is_active (flag_active)
     );
 
     blk_mem_gen_2 flag_ram (
-        .clka  (clk_25MHz),           // 使用跟 VGA 同樣的時脈
-        .addra (flag_addr),   // 接上算出來的位址
-        .douta (flag_code)    // 讀出來的資料
+        .clka  (clk_25MHz),         
+        .addra (flag_addr),  
+        .douta (flag_code)  
     );
     color_decoder flag_decoder(
         .color_index(flag_code),
