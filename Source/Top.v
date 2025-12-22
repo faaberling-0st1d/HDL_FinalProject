@@ -307,13 +307,22 @@ module Top (
         .is_pixel(is_countdown_pixel)
     );
 
-    // PAUSE and PLAY 暫停與回歸遊玩 ---
+    // --- PAUSE and PLAY 暫停與回歸遊玩 ---
     wire is_pause_resume_pixel;
     PauseResumeSprite pause_play_display (
         .clk(clk), .rst(rst),
         .h_cnt(h_cnt), .v_cnt(v_cnt),
         .state(state),
         .is_pixel(is_pause_resume_pixel)
+    );
+
+    // --- WINNING 玩家先贏 ---
+    wire [1:0] winning_player = {p2_finish, p1_finish};
+    wire is_win_pixel;
+    WinningSprite win_display (
+        .h_cnt(h_cnt), .v_cnt(v_cnt),
+        .winning_player(winning_player),
+        .is_pixel(is_win_pixel)
     );
     
     // --- Debug Layer: 繪製碰撞框 ---
@@ -433,11 +442,18 @@ module Top (
         end else if (is_separator) begin
             final_color = SEPARATOR_COLOR; // 分割線
         end else if (sw && is_debug_pixel) begin
-             final_color = 12'hF0F; // 亮紫色
+            final_color = 12'hF0F; // 亮紫色
         end else if (state == COUNTDOWN && is_countdown_pixel) begin
             final_color = 12'hFFF; // 白色
         end else if (is_pause_resume_pixel) begin
             final_color = 12'hFFF; // 白色
+        
+        // Left player finish first!
+        end else if ((state == RACING || state == PAUSE) && p1_finish && is_left_screen && !is_hud_area) begin
+            final_color = (is_win_pixel) ? 12'hF0F /* 洋紅色 */ : 12'hFAA /* 粉紅色 */;
+        // Right player finish first!
+        end else if ((state == RACING || state == PAUSE) && p2_finish && !is_left_screen && !is_hud_area) begin
+            final_color = (is_win_pixel) ? 12'h0FF /* 青色 */ : 12'hAAF /* 粉藍色 */;
 
         end else begin
             // 優先顯示自己的車
