@@ -84,8 +84,6 @@ module Top (
     wire [1:0] p2_flag_order;
     reg [3:0] p1_color;
     reg [3:0] p2_color;
-    wire [3:0] car_self_color;
-    wire [3:0] car_enemy_color;
     OperationEncoder op_encoder (
         .clk(clk), .rst(rst),
 
@@ -165,8 +163,6 @@ module Top (
             enemy_world_x = p2_world_x;
             enemy_world_y = p2_world_y;
             enemy_degree  = p2_degree;
-            p1_color = car_self_color;
-            p2_color = car_enemy_color;
         end else begin
             // [P2 View]
             screen_rel_x  = h_cnt - 320;
@@ -176,8 +172,6 @@ module Top (
             enemy_world_x = p1_world_x;
             enemy_world_y = p1_world_y;
             enemy_degree  = p1_degree;
-            p2_color = car_self_color;
-            p1_color = car_enemy_color;
         end
     end
 
@@ -286,6 +280,8 @@ module Top (
         addr_car_self  = is_self_box  ? calc_addr_self  : 17'd0;
         addr_car_enemy = is_enemy_box ? calc_addr_enemy : 17'd0;
     end
+    wire [3:0] car_self_color;
+    wire [3:0] car_enemy_color;
     blk_mem_gen_1 car_ram (
         .clka(clk_25MHz), .addra(addr_car_self), .douta(car_self_color),   // Port A: Self
         .clkb(clk_25MHz), .addrb(addr_car_enemy), .doutb(car_enemy_color)  // Port B: Enemy
@@ -452,6 +448,33 @@ module Top (
                 final_color = data_map;
         end
     end
+    // ==========================================
+    // [新方法] 簡單暴力的地圖顏色抓取 (Screen Center Snatch)
+    // ==========================================
+    
+    // 雖然 BRAM 讀取有 2 clock 延遲，但地圖格子通常很大，
+    // 所以直接抓螢幕中心點 (160, 240) 的顏色通常是準確的。
+    
+    always @(posedge clk_25MHz) begin
+        if (rst) begin
+            p1_color <= 4'd0;
+            p2_color <= 4'd0;
+        end else begin
+            // --- 抓取 P1 地板顏色 ---
+            // 左螢幕中心點 (h=160, v=240)
+            // 這裡抓 map_color (它是 BRAM 輸出的 index，例如 0~15)
+            if (h_cnt == 10'd160 && v_cnt == 10'd240) begin
+                p1_color <= map_color; 
+            end
+            
+            // --- 抓取 P2 地板顏色 ---
+            // 右螢幕中心點 (h=160+320=480, v=240)
+            else if (h_cnt == 10'd480 && v_cnt == 10'd240) begin
+                p2_color <= map_color;
+            end
+        end
+    end
+
 
     assign vgaRed   = final_color[11:8];
     assign vgaGreen = final_color[7:4];
