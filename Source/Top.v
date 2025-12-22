@@ -49,7 +49,7 @@ module Top (
         .start_btn(start_btn),     // Game Starting Button
         .setting_btn(setting_btn), // Game Setting Button
         .pause_btn(pause_btn),     // Game Pause Button (for state COUNTDOWN & RACING)
-        .is_game_end(p1_finish | p2_finish), // Whether the racing game has ended. (遊戲結束)
+        .is_game_end(p1_finish & p2_finish), // 兩個人都完成再結束遊戲。
         .state(state),
         .countdown_val(countdown_val)
     );
@@ -311,6 +311,15 @@ module Top (
         .num(countdown_val),
         .is_pixel(is_countdown_pixel)
     );
+
+    // PAUSE and PLAY 暫停與回歸遊玩 ---
+    wire is_pause_resume_pixel;
+    PauseResumeSprite pause_play_display (
+        .clk(clk), .rst(rst),
+        .h_cnt(h_cnt), .v_cnt(v_cnt),
+        .state(state),
+        .is_pixel(is_pause_resume_pixel)
+    );
     
     // --- Debug Layer: 繪製碰撞框 ---
     // 假設有一個開關 sw[0] 用來切換是否顯示 Debug 框
@@ -431,7 +440,9 @@ module Top (
         end else if (sw && is_debug_pixel) begin
              final_color = 12'hF0F; // 亮紫色
         end else if (state == COUNTDOWN && is_countdown_pixel) begin
-            final_color = 12'hFFF;
+            final_color = 12'hFFF; // 白色
+        end else if (is_pause_resume_pixel) begin
+            final_color = 12'hFFF; // 白色
 
         end else begin
             // 優先顯示自己的車

@@ -28,7 +28,6 @@ module StateEncoder (
 
     /* [States] */
     reg [2:0] next_state;
-    reg [2:0] prev_main_state;
     // Local parameters
     localparam IDLE      = 3'd0;
     localparam SETTING   = 3'd1;
@@ -43,21 +42,13 @@ module StateEncoder (
     parameter SECOND = 29'd100_000_000;
     parameter COUNTDOWN_TIME_LIMIT = 3 * SECOND;
 
-    /* [Sequential Circuit]
-     * `state`
-     */
-    // "Main" states: RACING, COUNTDOWN.
-    wire is_main_state = (state == IDLE || state == RACING || state == COUNTDOWN);
-    
     always @(posedge clk) begin
         if (rst) begin
             state           <= IDLE;
-            prev_main_state <= IDLE;
             countdown_cnt   <= 29'd0;
 
         end else begin
             state           <= next_state;
-            prev_main_state <= (is_main_state) ? state : prev_main_state; // Note the previous state only when the current state is the main ones.
             countdown_cnt   <= next_countdown_cnt;
         end
     end
@@ -113,7 +104,7 @@ module StateEncoder (
             PAUSE: begin
                 // Return to the previous "normal" state if the user press the pause button again.
                 if (pause_op) begin
-                    next_state = prev_main_state;
+                    next_state = RACING;
                 end
             end
 
@@ -132,10 +123,10 @@ module StateEncoder (
             countdown_val <= 2'd3;
         end else begin
             if (state == COUNTDOWN) begin
-                if      (countdown_cnt ==     SECOND) countdown_val <= 2'd2;
-                else if (countdown_cnt == 2 * SECOND) countdown_val <= 2'd1;
-                else if (countdown_cnt == 3 * SECOND) countdown_val <= 2'd0;
-                else                                  countdown_val <= countdown_val;
+                if      (countdown_cnt == 29'd100_000_000) countdown_val <= 2'd2;
+                else if (countdown_cnt == 29'd200_000_000) countdown_val <= 2'd1;
+                else if (countdown_cnt == 29'd300_000_000) countdown_val <= 2'd0;
+                else                                       countdown_val <= countdown_val;
             end else begin
                 countdown_val <= 2'd3;
             end
