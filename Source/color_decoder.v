@@ -30,3 +30,19 @@ module color_decoder (
     end
 
 endmodule
+//顏色編碼：0=透明, 1=紅, 2=深紅, 3=黃, 4=黑, 5=灰, 6=綠, 7=土黃, 8=白,9亮綠,10淺灰
+module big_map_color_decoder (
+    input wire [1:0] color_index,
+    output reg [11:0] rgb_data     // 轉還原給 VGA 的 12-bit RGB (RRRRGGGGBBBB)
+);
+    always @(*) begin
+        case (color_index)
+            4'd0: rgb_data = 12'hDD0;
+            4'd1: rgb_data = 12'h284;
+            4'd2: rgb_data = 12'h000;
+            4'd3: rgb_data = 12'h6A3s;
+            default: rgb_data = 12'hF0F; // 錯誤處理 (紫色)，若出現預期外的數值方便除錯
+        endcase
+    end
+
+endmodule
