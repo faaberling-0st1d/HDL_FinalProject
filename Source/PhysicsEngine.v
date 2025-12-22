@@ -6,10 +6,7 @@ module PhysicsEngine #(
     parameter MAP_W = 10'd640,
     parameter MAP_H = 10'd480,
     parameter OFFSET_DIST = 10'd2, 
-    
-    // [優化] 改用矩形半寬 (Box Half-Width) 代替圓半徑平方
-    // 原本半徑是 3 (平方9)，這裡設 3 代表判定框為 6x6
-    parameter COLLISION_SIZE = 10'd9 
+    parameter COLLISION_SIZE = 10'd36 
 )(
     input clk,
     input rst,
@@ -284,7 +281,7 @@ module PhysicsEngine #(
                         end
                     end
                     2'd2: begin
-                        if(my_f_y>380 && my_f_y<445 && my_f_x<178 && my_f_x>228)begin
+                        if(my_f_y>380 && my_f_y<445 && my_f_x<178 && my_f_x>168)begin
                             flag<=2'd3;
                         end
                     end
