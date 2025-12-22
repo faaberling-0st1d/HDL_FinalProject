@@ -381,7 +381,7 @@ module Top (
         .rgb_data(lobby_data)
     );
 
-    wire [16:0] finish_addr = (v_cnt << 6) + (v_cnt << 4) + (h_cnt>>2);
+    wire [16:0] finish_addr = (v_cnt << 7) + (v_cnt << 5) + (h_cnt >> 1);
     wire [3:0] finish_code;
     wire [11:0] finish_data;
     blk_mem_gen_4 finish_ram(
