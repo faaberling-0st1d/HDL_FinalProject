@@ -24,12 +24,12 @@ module Top (
     output wire audio_sdin
 );
     // --- 參數設定 ---
-    parameter MAP_BASE_ADDR   = 17'd90001; // 地圖起始位址
-    parameter MAP_WIDTH       = 10'd320;
-    parameter MAP_HEIGHT      = 10'd240;
-    parameter TRANSPARENT     = 12'h000;   // 車子透明色 (綠)
-    parameter OUT_BOUND_COLOR = 12'h6B4;   // 地圖界外色 (綠)
-    parameter SEPARATOR_COLOR = 12'hFFF;   // 分割線 (白)
+   parameter MAP_BASE_ADDR   = 17'd90001; 
+    parameter MAP_WIDTH       = 10'd640; 
+    parameter MAP_HEIGHT      = 10'd480;
+    parameter TRANSPARENT     = 12'h000;   
+    parameter OUT_BOUND_COLOR = 12'h6B4;   
+    parameter SEPARATOR_COLOR = 12'hFFF;
 
     // --- 內部連接線 ---
     wire clk_25MHz, valid;
@@ -178,50 +178,45 @@ module Top (
     // --- 記憶體位址計算 ---
 
     // A. 地圖位址計算 (Map Address)
-    reg [16:0] addr_map;
+    reg [18:0] addr_map; 
     wire [11:0] data_map;
     
     // 地圖的世界座標
-    wire [9:0] map_global_x = (screen_rel_x >> 3) + (my_world_x - 20); // 假設中心在160，地圖縮放2倍
-    wire [9:0] map_global_y = (v_cnt >> 3) + (my_world_y - 22);        // 假設中心在240(120*2)
+    wire [9:0] map_global_x = (screen_rel_x >> 2) + (my_world_x - 40); 
+    wire [9:0] map_global_y = (v_cnt >> 2) + (my_world_y - 60);
     wire is_out_of_map = (map_global_x >= MAP_WIDTH) || (map_global_y >= MAP_HEIGHT);
 
-    always @(*) begin
+   always @(*) begin
         if (is_out_of_map) addr_map = 0;
-        else addr_map = (map_global_y << 8) + (map_global_y << 6) + map_global_x;
+        else addr_map = (map_global_y << 9) + (map_global_y << 7) + map_global_x;
     end
     
     // --- B. 小地圖位址計算 (Port B) ---
-    reg [16:0] addr_minimap;
+    reg [18:0] addr_minimap;
     wire [11:0] data_map_mini;
-    // 還原相對地圖座標 (螢幕座標 -> 地圖座標)
-    // 左移 1位 (<<1) 代表乘以 2，實現 1/2 縮放
-    wire [9:0] mm_read_x = (h_cnt - 240) << 1;
-    wire [9:0] mm_read_y = (v_cnt - 360) << 1;
+    
+    wire [9:0] mm_read_x = (h_cnt - 240) << 2;
+    wire [9:0] mm_read_y = (v_cnt - 360) << 2;
     
     // 2. 計算線性位址 (Row-Major)
     // 只有在掃描線進入小地圖區域時才計算，節省功耗 (雖非必要但好習慣)
     always @(*) begin
         if (is_minimap_area)
-            // -----------------------------------------------------------------
-            // [修正] 強制使用移位運算取代乘法 (320 = 256 + 64)
-            // 原本: addr_minimap = (mm_read_y * 320) + mm_read_x;
-            // -----------------------------------------------------------------
-            addr_minimap = (mm_read_y << 8) + (mm_read_y << 6) + mm_read_x;
+            addr_minimap = (mm_read_y << 9) + (mm_read_y << 7) + mm_read_x;
         else
             addr_minimap = 17'd0;
     end
 
-    wire [3:0] map_color;
-    wire [3:0] map_color_mini;
+    wire [1:0] map_color;
+    wire [1:0] map_color_mini;
     blk_mem_gen_0 map_ram (
         .clka(clk_25MHz), .addra(addr_map), .douta(map_color),
         .clkb(clk_25MHz), .addrb(addr_minimap), .doutb(map_color_mini)
         );
-    color_decoder map_color_decoder(.color_index(map_color),  // 從 BRAM 讀出來的 0~5
-    .rgb_data(data_map),.is_b(0));
-    color_decoder map_color_mini_decoder(.color_index(map_color_mini),  // 從 BRAM 讀出來的 0~5
-    .rgb_data(data_map_mini),.is_b(0));
+    big_map_color_decoder map_color_decoder(.color_index(map_color),  // 從 BRAM 讀出來的 0~5
+    .rgb_data(data_map));
+    big_map_color_decoder map_color_mini_decoder(.color_index(map_color_mini),  // 從 BRAM 讀出來的 0~5
+    .rgb_data(data_map_mini));
 
     // B. 車子位址計算 (Car Address) - True Dual Port
     reg [16:0] addr_car_self;
@@ -245,8 +240,8 @@ module Top (
 
     // 2. [敵人的車] (相對座標)
     // 距離 = (Enemy - Me) * 2 (地圖放大倍率)
-    wire signed [12:0] diff_x = (enemy_world_x - my_world_x) <<< 3;
-    wire signed [12:0] diff_y = (enemy_world_y - my_world_y) <<< 3;
+    wire signed [12:0] diff_x = (enemy_world_x - my_world_x) <<< 2;
+    wire signed [12:0] diff_y = (enemy_world_y - my_world_y) <<< 2;
     wire signed [12:0] enemy_center_x = 160 + diff_x;
     wire signed [12:0] enemy_center_y = 180 + diff_y;
     
@@ -293,16 +288,16 @@ module Top (
 
     // 2. 將螢幕座標還原回「地圖座標」(反向縮放)
     // 這樣就可以直接跟 p1_world_x (0~320) 做比較
-    wire [9:0] mm_scan_x = (h_cnt - 240) << 1; 
-    wire [9:0] mm_scan_y = (v_cnt - 360) << 1;
+    wire [9:0] mm_scan_x = (h_cnt - 240) << 2; 
+    wire [9:0] mm_scan_y = (v_cnt - 360) << 2;
 
     // 3. 判斷是否為車子的點 (點的大小設為 8x8 的世界座標範圍，約等於小地圖上的 4x4 像素)
     // 這裡使用簡單的矩形判斷，abs 邏輯
-    wire is_p1_dot = (mm_scan_x >= p1_world_x - 4 && mm_scan_x <= p1_world_x + 4) &&
-                     (mm_scan_y >= p1_world_y - 4 && mm_scan_y <= p1_world_y + 4);
+    wire is_p1_dot = (mm_scan_x >= p1_world_x - 6 && mm_scan_x <= p1_world_x + 6) &&
+                     (mm_scan_y >= p1_world_y - 6 && mm_scan_y <= p1_world_y + 6);
 
-    wire is_p2_dot = (mm_scan_x >= p2_world_x - 4 && mm_scan_x <= p2_world_x + 4) &&
-                     (mm_scan_y >= p2_world_y - 4 && mm_scan_y <= p2_world_y + 4);
+    wire is_p2_dot = (mm_scan_x >= p2_world_x - 6 && mm_scan_x <= p2_world_x + 6) &&
+                     (mm_scan_y >= p2_world_y - 6 && mm_scan_y <= p2_world_y + 6);
     
     // --- COUNTDOWN 倒數 --- 
     wire is_countdown_pixel;

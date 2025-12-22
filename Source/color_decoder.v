@@ -40,7 +40,7 @@ module big_map_color_decoder (
             4'd0: rgb_data = 12'hDD0;
             4'd1: rgb_data = 12'h284;
             4'd2: rgb_data = 12'h000;
-            4'd3: rgb_data = 12'h6A3s;
+            4'd3: rgb_data = 12'h6A3;
             default: rgb_data = 12'hF0F; // 錯誤處理 (紫色)，若出現預期外的數值方便除錯
         endcase
     end

@@ -3,8 +3,8 @@ module PhysicsEngine #(
     parameter START_Y = 120,
     parameter CLK_FREQ = 100_000_000,
     
-    parameter MAP_W = 10'd320,
-    parameter MAP_H = 10'd240,
+    parameter MAP_W = 10'd640,
+    parameter MAP_H = 10'd480,
     parameter OFFSET_DIST = 10'd2, 
     
     // [優化] 改用矩形半寬 (Box Half-Width) 代替圓半徑平方
