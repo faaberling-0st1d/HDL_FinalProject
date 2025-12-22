@@ -129,11 +129,12 @@ module WinningSprite (
                     && (START_Y <= v_cnt && v_cnt <= START_Y + HEIGHT);
     
     always @(*) begin
+        is_pixel = 0;
         if (in_box) begin
             if (winning_player != 2'b00)
-                is_pixel <= winning_text_rom[rel_y][279 - rel_x];
+                is_pixel = winning_text_rom[rel_y][279 - rel_x];
             else
-                is_pixel <= 0;
+                is_pixel = 0;
         end
     end
 endmodule
