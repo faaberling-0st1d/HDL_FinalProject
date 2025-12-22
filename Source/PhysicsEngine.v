@@ -101,8 +101,8 @@ module PhysicsEngine #(
     
     direction_lut lut_inst (.angle_idx(angle_idx), .dir_x(unit_x), .dir_y(unit_y));
 
-    wire signed [9:0] final_off_x = unit_x >>> 5;
-    wire signed [9:0] final_off_y = unit_y >>> 5;
+    wire signed [9:0] final_off_x = unit_x >>> 6;
+    wire signed [9:0] final_off_y = unit_y >>> 6;
 
     always @(posedge clk) begin
         if (rst) begin
@@ -156,10 +156,10 @@ module PhysicsEngine #(
         target_speed = speed;
         // 加減速邏輯
         if(speed_delay == 0) begin
-            if (v_code == 2'd1 /*UP*/) begin
-                if (speed < 10) target_speed = speed + 1;
-            end else if (v_code == 2'd2 /*DOWN*/) begin
-                if (speed >-6) target_speed = speed - 1;
+            if (v_code == 2'd1 && speed<=12) begin
+                if(speed < 12) target_speed = speed + 1;
+            end else if (v_code == 2'd2 && speed>=-8) begin
+                if(speed > -8) target_speed = speed - 1;
             end else begin // Friction
                 if (speed > 0) target_speed = speed - 1;
                 else if (speed < 0) target_speed = speed + 1;
@@ -167,7 +167,7 @@ module PhysicsEngine #(
         end
         if (color == 3) begin
              // 強制限制最高速
-             if (speed > 4) target_speed = 4;       // 前進受阻
+             if (speed > 6) target_speed = 6;       // 前進受阻
              else if (speed < -4) target_speed = -4; // 後退受阻
         end
     end
@@ -209,10 +209,11 @@ module PhysicsEngine #(
                 hit_cd_cnt <= HIT_COOLDOWN_TIME;
                 // 反彈邏輯
                 if(hit_rf || hit_rr) begin // 被撞屁股或側面
-                    speed <= 10'd3;
+                    if(speed>0) speed <= speed + 10'd4;
+                    else speed <= 10'd4;
                 end else begin // 正面撞擊
-                    if (speed >= 0) speed <= -10'd3;
-                    else speed <= 10'd3;
+                    if (speed >= 0) speed <= -10'd4;
+                    else speed <= speed - 10'd4;
                 end
                 speed_delay <= 0;
                 // 撞擊當下位置不更新 (避免黏住)

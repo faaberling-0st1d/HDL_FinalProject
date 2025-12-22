@@ -26,10 +26,10 @@ module final_color_decoder (
    
     always @(*) begin
         case (final_color_index)
-            4'd0:    rgb_data = 12'hFE0;
-            4'd1:    rgb_data = 12'h799;
-            4'd2:    rgb_data = 12'hFFF;
-            4'd3:    rgb_data = 12'hBE9; 
+            2'd0:    rgb_data = 12'hFE0;
+            2'd1:    rgb_data = 12'h799;
+            2'd2:    rgb_data = 12'hFFF;
+            2'd3:    rgb_data = 12'hBE9; 
             default: rgb_data = 12'hF0F; // 錯誤處理 (紫色)，若出現預期外的數值方便除錯
         endcase
     end
