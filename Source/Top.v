@@ -82,8 +82,8 @@ module Top (
     wire       p2_honk;
     wire [1:0] p1_flag_order;
     wire [1:0] p2_flag_order;
-    reg [3:0] p1_color;
-    reg [3:0] p2_color;
+    reg [1:0] p1_color;
+    reg [1:0] p2_color;
     OperationEncoder op_encoder (
         .clk(clk), .rst(rst),
 
@@ -463,8 +463,8 @@ module Top (
     
     always @(posedge clk_25MHz) begin
         if (rst) begin
-            p1_color <= 4'd0;
-            p2_color <= 4'd0;
+            p1_color <= 2'd0;
+            p2_color <= 2'd0;
         end else begin
             // --- 抓取 P1 地板顏色 ---
             // 左螢幕中心點 (h=160, v=240)
