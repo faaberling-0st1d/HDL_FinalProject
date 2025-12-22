@@ -6,9 +6,6 @@ module PhysicsEngine #(
     parameter MAP_W = 10'd320,
     parameter MAP_H = 10'd240,
     parameter OFFSET_DIST = 10'd2, 
-    
-    // [優化] 改用矩形半寬 (Box Half-Width) 代替圓半徑平方
-    // 原本半徑是 3 (平方9)，這裡設 3 代表判定框為 6x6
     parameter COLLISION_SIZE = 10'd9 
 )(
     input clk,
@@ -18,11 +15,9 @@ module PhysicsEngine #(
     input [1:0] v_code, 
     input boost,       
     
-    // 對手碰撞框中心
     input [9:0] other_f_x, input [9:0] other_f_y, 
     input [9:0] other_r_x, input [9:0] other_r_y, 
 
-    // 自己碰撞框中心
     output reg [9:0] my_f_x, output reg [9:0] my_f_y,
     output reg [9:0] my_r_x, output reg [9:0] my_r_y,
     
@@ -35,14 +30,14 @@ module PhysicsEngine #(
 );
     localparam HIT_COOLDOWN_TIME = 6'd30;
     
-    // --- 0. Game Tick 生成 ---
-    // [優化] 預先算好常數，減少比較器大小
-    localparam TICK_LIMIT = CLK_FREQ / 60;
+    // --- 0. Game Tick (120Hz) ---
+    localparam TICK_LIMIT = CLK_FREQ / 120;
     reg [20:0] tick_cnt;
     wire game_tick = (tick_cnt == TICK_LIMIT); 
-    reg signed [19:0] pos_x_accum, next_pos_x_accum;
-    reg signed [19:0] pos_y_accum, next_pos_y_accum;
-    reg signed [9:0]  next_speed;
+    
+    // 定點數座標 (Q10.10)
+    reg signed [19:0] pos_x_accum;
+    reg signed [19:0] pos_y_accum;
     
     always @(posedge clk) begin
         if (rst) tick_cnt <= 0;
@@ -77,15 +72,13 @@ module PhysicsEngine #(
         end
     end
 
-    // --- 2. 向量與偏移計算 ---
+    // --- 2. 向量計算 ---
     reg signed [9:0] speed;
     wire signed [9:0] unit_x, unit_y; 
     
     direction_lut lut_inst (.angle_idx(angle_idx), .dir_x(unit_x), .dir_y(unit_y));
 
-    // [優化] 移除乘法器，改用移位 (Shift)
-    // 假設 OFFSET_DIST 是 2，這等於 >>> 8 再 << 1，合併為 >>> 7
-    // 原本: (unit_x * 2) >>> 8  =>  unit_x >>> 7
+    // 位移向量 (Shift 7)
     wire signed [9:0] final_off_x = unit_x >>> 7;
     wire signed [9:0] final_off_y = unit_y >>> 7;
 
@@ -94,16 +87,15 @@ module PhysicsEngine #(
             my_f_x <= 0; my_f_y <= 0;
             my_r_x <= 0; my_r_y <= 0;
         end else begin
-            // 這裡直接取用 pos_x_accum 的高位，確保數值穩定
             my_f_x <= (pos_x_accum[19:10]) + final_off_x;
             my_f_y <= (pos_y_accum[19:10]) + final_off_y;
             my_r_x <= (pos_x_accum[19:10]) - final_off_x;
             my_r_y <= (pos_y_accum[19:10]) - final_off_y;
         end
     end
-    // --- 3. 碰撞檢測 (Box Collision) ---
-    // [優化] 使用矩形碰撞取代圓形，移除所有乘法器
-       function check_hit_func;
+
+    // --- 3. 碰撞檢測 ---
+    function check_hit_func;
         input [9:0] x1, y1, x2, y2;
         reg signed [10:0] dx, dy;
         reg [21:0] d_sq;
@@ -114,42 +106,43 @@ module PhysicsEngine #(
             check_hit_func = (d_sq < (COLLISION_SIZE<<<2));
         end
     endfunction
+    
     reg hit_ff, hit_fr, hit_rf, hit_rr;
-    always@(posedge clk)begin
+    always@(posedge game_tick) begin // 注意：這裡用 game_tick 觸發可能會有一點延遲，但這不是主要問題
         hit_ff = check_hit_func(my_f_x, my_f_y, other_f_x, other_f_y);
         hit_fr = check_hit_func(my_f_x, my_f_y, other_r_x, other_r_y);
         hit_rf = check_hit_func(my_r_x, my_r_y, other_f_x, other_f_y);
         hit_rr = check_hit_func(my_r_x, my_r_y, other_r_x, other_r_y);
     end
-
     wire is_car_hit = (hit_ff | hit_fr | hit_rf | hit_rr);
     
-    wire wall_hit_f = (my_f_x < 6 || my_f_x > MAP_W - 6 || my_f_y < 6 || my_f_y > MAP_H - 6);
-    wire wall_hit_r = (my_r_x < 6 || my_r_x > MAP_W - 6 || my_r_y < 6 || my_r_y > MAP_H - 6);
-    wire is_wall_hit = wall_hit_f | wall_hit_r;
+    // [優化] 拆分四個方向的撞牆判定，以便做「位置鉗制」
+    wire hit_left   = (my_f_x < 6 || my_r_x < 6);
+    wire hit_right  = (my_f_x > MAP_W - 6 || my_r_x > MAP_W - 6);
+    wire hit_top    = (my_f_y < 6 || my_r_y < 6);
+    wire hit_bottom = (my_f_y > MAP_H - 6 || my_r_y > MAP_H - 6);
+    wire is_wall_hit = hit_left | hit_right | hit_top | hit_bottom;
 
-    // --- 4. 下個狀態邏輯 (Combinational) ---
-    
-    reg [5:0] hit_cd_cnt;
-    reg [2:0] speed_delay; 
-
-    assign pos_x = pos_x_accum[19:10]; 
-    assign pos_y = pos_y_accum[19:10];
+    // --- 4. 輸出邏輯 (四捨五入) ---
+    assign pos_x = pos_x_accum[19:10] + {9'd0, pos_x_accum[9]}; 
+    assign pos_y = pos_y_accum[19:10] + {9'd0, pos_y_accum[9]};
     
     always @(posedge clk) speed_out <= speed;
 
-    // 這裡計算 "假如沒有發生碰撞" 的正常物理變量
     reg signed [9:0] target_speed;
+    reg [5:0] hit_cd_cnt;
+    reg [2:0] speed_delay; 
+
+    // Target Speed Calculation
     always @(*) begin
         target_speed = speed;
-        // 加減速邏輯
         if(speed_delay == 0) begin
             if (v_code == 2'd1 /*UP*/) begin
                 if (boost && speed < 15)      target_speed = speed + 1;
-                else if (!boost && speed < 8) target_speed = speed + 1;
+                else if (!boost && speed < 7) target_speed = speed + 1;
             end else if (v_code == 2'd2 /*DOWN*/) begin
                 if (speed > -4) target_speed = speed - 1;
-            end else begin // Friction
+            end else begin 
                 if (speed > 0) target_speed = speed - 1;
                 else if (speed < 0) target_speed = speed + 1;
             end
@@ -165,39 +158,45 @@ module PhysicsEngine #(
             speed_delay <= 0;
             hit_cd_cnt <= 0;
         end else if (game_tick && state == 3'd4) begin
-            // A. 冷卻中 (剛撞完)
-            if (hit_cd_cnt > 0) begin
-                hit_cd_cnt <= hit_cd_cnt - 1;
-                // 冷卻時依然有慣性移動，但不能加速
-                if (speed != 0) begin
-                    pos_x_accum <= pos_x_accum + ((speed * unit_x) >>> 1);
-                    pos_y_accum <= pos_y_accum + ((speed * unit_y) >>> 1);
-                end
-                // 讓速度自然衰減 (摩擦力)
-                speed <= target_speed; 
-                speed_delay <= speed_delay + 1;
+            
+            // A. 發生撞牆 (優先權最高，強制校正位置)
+            // [關鍵修正] 使用位置鉗制 (Clamping) 防止穿牆
+            if (is_wall_hit) begin
+                hit_cd_cnt <= 6'd20; 
+                speed_delay <= 0;
+                
+                // 1. 反彈速度
+                if (speed >= 0) speed <= -10'd2;
+                else            speed <= 10'd2;
+
+                // 2. 強制拉回牆內 (Clamping)
+                // 必須判斷是車頭還是車尾撞牆，這裡做簡單的邊界限制
+                // 這裡直接操作 accum，把車子「推」離牆壁 6 個像素
+                if (hit_left)        pos_x_accum <= (10'd7 << 10); 
+                else if (hit_right)  pos_x_accum <= ((MAP_W - 7) << 10);
+                
+                if (hit_top)         pos_y_accum <= (10'd7 << 10);
+                else if (hit_bottom) pos_y_accum <= ((MAP_H - 7) << 10);
             end
             
             // B. 發生撞車
             else if (is_car_hit) begin
                 hit_cd_cnt <= HIT_COOLDOWN_TIME;
-                // 簡單的反彈邏輯
-                if(hit_rf) begin // 被撞屁股或側面
-                    speed <= speed + 10'd3;
-                end else begin // 正面撞擊
-                    if (speed >= 0) speed <= -10'd3;
-                    else speed <= 10'd3;
-                end
+                if(hit_rf || hit_rr) speed <= 10'd3;       // 屁股撞: 向前彈
+                else                 speed <= (speed >= 0) ? -10'd3 : 10'd3; // 頭撞: 向後彈
                 speed_delay <= 0;
-                // 撞擊當下位置不更新 (避免黏住)
             end
             
-            // C. 發生撞牆
-            else if (is_wall_hit) begin
-                if (speed >= 0) speed <= -10'd2;
-                else            speed <= 10'd2;
-                hit_cd_cnt <= 6'd20; 
-                speed_delay <= 0;
+            // C. 冷卻中
+            else if (hit_cd_cnt > 0) begin
+                hit_cd_cnt <= hit_cd_cnt - 1;
+                if (speed != 0) begin
+                    // [修正點] 120Hz 降速：原本 >>> 1 改成 >>> 2
+                    pos_x_accum <= pos_x_accum + ((speed * unit_x) >>> 2);
+                    pos_y_accum <= pos_y_accum + ((speed * unit_y) >>> 2);
+                end
+                speed <= target_speed; 
+                speed_delay <= speed_delay + 1;
             end
             
             // D. 正常行駛
@@ -205,37 +204,45 @@ module PhysicsEngine #(
                 speed <= target_speed;
                 speed_delay <= speed_delay + 1;
                 if (speed != 0) begin
-                    // 這是唯一的乘法器，保留給位移運算
-                    pos_x_accum <= pos_x_accum + ((speed * unit_x) >>> 1);
-                    pos_y_accum <= pos_y_accum + ((speed * unit_y) >>> 1);
+                    // [修正點] 120Hz 降速：原本 >>> 1 改成 >>> 2
+                    pos_x_accum <= pos_x_accum + ((speed * unit_x) >>> 2);
+                    pos_y_accum <= pos_y_accum + ((speed * unit_y) >>> 2);
                 end
             end
         end
     end
-    always@(posedge clk)begin
-        if(flag==2'd0)begin
-            if(my_f_y>23 && my_f_y<54 && my_f_x>179 && my_f_x<184)begin
-                flag=2'd1;
+
+    // --- 6. Checkpoint 判定 (Sequential Logic) ---
+    always @(posedge clk) begin
+        if (rst) begin
+            flag <= 2'd0;
+            finish <= 0;
+        end 
+        else if (state == 3'd4) begin
+            // [修正點] 這裡原本用 = (阻塞賦值)，改為 <= (非阻塞賦值)
+            // 另外建議稍微放寬一點判定區間，以免 120Hz 速度快時跳過
+            
+            if(flag == 2'd0) begin
+                // 放寬判定範圍，例如 +/- 5 pixel
+                if(my_f_y > 23 && my_f_y < 54 && my_f_x > 175 && my_f_x < 185) begin
+                    flag <= 2'd1;
+                end
             end
-        end
-        else if(flag==2'd1)begin
-            if(my_f_y>195 && my_f_y<227 && my_f_x<247 && my_f_x>242)begin
-                flag=2'd2;
+            else if(flag == 2'd1) begin
+                if(my_f_y > 195 && my_f_y < 227 && my_f_x < 247 && my_f_x > 242) begin
+                    flag <= 2'd2;
+                end
             end
-        end
-        else if(flag==2'd2)begin
-            if(my_f_y>190 && my_f_y<220 && my_f_x<87 && my_f_x>82)begin
-                flag=2'd3;
+            else if(flag == 2'd2) begin
+                if(my_f_y > 190 && my_f_y < 220 && my_f_x < 87 && my_f_x > 82) begin
+                    flag <= 2'd3;
+                end
             end
-        end
-        else if(flag==2'd3)begin
-             if(my_f_x>20 && my_f_x<50 && my_f_y<112)begin
-                finish=1;
+            else if(flag == 2'd3) begin
+                if(my_f_x > 20 && my_f_x < 50 && my_f_y < 112) begin
+                    finish <= 1;
+                end
             end
-        end
-        else begin
-            flag=2'd0;
-            finish=0;
         end
     end
 endmodule
