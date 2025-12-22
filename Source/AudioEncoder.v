@@ -68,6 +68,10 @@ module AudioEncoder (
 
             end else begin
                 case (state)
+                    IDLE: begin
+                        local_cnt <= 0;
+                        go_audio_effect_played <= 0;
+                    end
                     COUNTDOWN: begin
                         if (local_cnt < SECOND) local_cnt <= local_cnt + 1;
                         else                    local_cnt <= 0;

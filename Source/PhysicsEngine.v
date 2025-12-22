@@ -35,6 +35,15 @@ module PhysicsEngine #(
 );
     localparam HIT_COOLDOWN_TIME = 6'd30;
     
+    /* [State] */
+    localparam IDLE      = 3'd0;
+    localparam SETTING   = 3'd1;
+    // localparam SYNCING = 3'd2;
+    localparam COUNTDOWN = 3'd3;
+    localparam RACING    = 3'd4;
+    localparam PAUSE     = 3'd5;
+    localparam FINISH    = 3'd6;
+
     // --- 0. Game Tick 生成 ---
     // [優化] 預先算好常數，減少比較器大小
     localparam TICK_LIMIT = CLK_FREQ / 120;
@@ -57,8 +66,8 @@ module PhysicsEngine #(
     always @(posedge clk) begin
         if (rst) begin
             internal_angle <= 6'd0;
-            angle_idx <= 0; 
-            turn_delay <= 0;
+            angle_idx      <= 0; 
+            turn_delay     <= 0;
         end else begin
             if (state == IDLE) begin // Initialize in IDLE state.
                 internal_angle <= 6'd0;
@@ -179,10 +188,18 @@ module PhysicsEngine #(
         if (rst) begin
             pos_x_accum <= START_X << 10;
             pos_y_accum <= START_Y << 10;
-            speed <= 0;
+            speed       <= 0;
             speed_delay <= 0;
-            hit_cd_cnt <= 0;
-        end else if (game_tick && state == 3'd4) begin
+            hit_cd_cnt  <= 0;
+
+        end else if (state == IDLE) begin // Initialize the values in IDLE state.
+            pos_x_accum <= START_X << 10;
+            pos_y_accum <= START_Y << 10;
+            speed       <= 0;
+            speed_delay <= 0;
+            hit_cd_cnt  <= 0;
+
+        end else if (game_tick && state == RACING) begin
             // A. 冷卻中 (剛撞完)
             if (hit_cd_cnt > 0) begin
                 hit_cd_cnt <= hit_cd_cnt - 1;
@@ -231,35 +248,60 @@ module PhysicsEngine #(
                     pos_y_accum <= pos_y_accum + ((speed * unit_y) >>> 2);
                 end
             end
+
+        end else begin // Retain values in other states, other conditions.
+            pos_x_accum <= pos_x_accum;
+            pos_y_accum <= pos_y_accum;
+            speed       <= speed;
+            speed_delay <= speed_delay;
+            hit_cd_cnt  <= hit_cd_cnt;
         end
     end
-    always@(posedge clk)begin
-        if(flag==2'd0)begin
-            if(my_f_y>23 && my_f_y<54 && my_f_x>179 && my_f_x<184)begin
-                flag=2'd1;
+
+    always @(posedge clk) begin
+        if (rst) begin
+            flag   <= 2'd0;
+            finish <= 0;
+        end else begin
+            if (state == IDLE) begin // Initialize in state IDLE
+                flag   <= 2'd0;
+                finish <= 0;
+
+            end else if (state == RACING) begin
+                case (flag)
+                    2'd0: begin
+                        if (my_f_y>23 && my_f_y<54 && my_f_x>179 && my_f_x<184)begin
+                            flag<=2'd1;
+                        end
+                    end
+                    2'd1: begin
+                        if(my_f_y>195 && my_f_y<227 && my_f_x<247 && my_f_x>242)begin
+                            flag<=2'd2;
+                        end
+                    end
+                    2'd2: begin
+                        if(my_f_y>190 && my_f_y<220 && my_f_x<87 && my_f_x>82)begin
+                            flag<=2'd3;
+                        end
+                    end
+                    2'd3: begin
+                        if(my_f_x>20 && my_f_x<50 && my_f_y<112)begin
+                            finish<=1;
+                        end
+                    end
+                    default: begin
+                        flag<=2'd0;
+                        finish<=0;
+                    end
+                endcase
+            end else begin
+                flag   <= flag;
+                finish <= finish;
             end
-        end
-        else if(flag==2'd1)begin
-            if(my_f_y>195 && my_f_y<227 && my_f_x<247 && my_f_x>242)begin
-                flag<=2'd2;
-            end
-        end
-        else if(flag==2'd2)begin
-            if(my_f_y>190 && my_f_y<220 && my_f_x<87 && my_f_x>82)begin
-                flag<=2'd3;
-            end
-        end
-        else if(flag==2'd3)begin
-             if(my_f_x>20 && my_f_x<50 && my_f_y<112)begin
-                finish<=1;
-            end
-        end
-        else begin
-            flag<=2'd0;
-            finish<=0;
         end
     end
 endmodule
+
 module direction_lut (
     input [3:0] angle_idx, // 0=Up, 順時針增加
     output reg signed [9:0] dir_x, 
