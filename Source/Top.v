@@ -84,7 +84,10 @@ module Top (
     wire       p2_honk;
     wire [1:0] p1_flag_order;
     wire [1:0] p2_flag_order;
-    
+    reg [3:0] p1_color;
+    reg [3:0] p2_color;
+    wire [3:0] car_self_color;
+    wire [3:0] car_enemy_color;
     OperationEncoder op_encoder (
         .clk(clk), .rst(rst),
 
@@ -120,7 +123,7 @@ module Top (
         .angle_idx(p1_degree),
         .other_f_x(P2_f_x),.other_f_y(P2_f_y),.other_r_x(P2_r_x),.other_r_y(P2_r_y),
         .my_f_x(P1_f_x),.my_f_y(P1_f_y),.my_r_x(P1_r_x),.my_r_y(P1_r_y),
-        .speed_out(p1_speed),.flag(p1_flag_order),.finish(p1_finish)
+        .speed_out(p1_speed),.flag(p1_flag_order),.finish(p1_finish),.color(p1_color)
     );
 
     wire [9:0] p2_speed;
@@ -136,7 +139,7 @@ module Top (
         .angle_idx(p2_degree),
         .other_f_x(P1_f_x),.other_f_y(P1_f_y),.other_r_x(P1_r_x),.other_r_y(P1_r_y),
         .my_f_x(P2_f_x),.my_f_y(P2_f_y),.my_r_x(P2_r_x),.my_r_y(P2_r_y),
-        .speed_out(p2_speed),.flag(p2_flag_order),.finish(p2_finish)
+        .speed_out(p2_speed),.flag(p2_flag_order),.finish(p2_finish),.color(p2_color)
     );
 
     // --- 渲染變數 (Rendering Logic) ---
@@ -166,6 +169,8 @@ module Top (
             enemy_world_x = p2_world_x;
             enemy_world_y = p2_world_y;
             enemy_degree  = p2_degree;
+            p1_color = car_self_color;
+            p2_color = car_enemy_color;
         end else begin
             // [P2 View]
             screen_rel_x  = h_cnt - 320;
@@ -175,6 +180,8 @@ module Top (
             enemy_world_x = p1_world_x;
             enemy_world_y = p1_world_y;
             enemy_degree  = p1_degree;
+            p2_color = car_self_color;
+            p1_color = car_enemy_color;
         end
     end
 
@@ -197,9 +204,8 @@ module Top (
     // --- B. 小地圖位址計算 (Port B) ---
     reg [16:0] addr_minimap;
     wire [11:0] data_map_mini;
-    // 1. 還原相對地圖座標 (螢幕座標 -> 地圖座標)
-    // 這裡用 h_cnt - 240 (小地圖起始X) 和 v_cnt - 360 (小地圖起始Y)
-    // 左移 1位 (<<1) 代表乘以 2，實現 1/2 縮放採樣
+    // 還原相對地圖座標 (螢幕座標 -> 地圖座標)
+    // 左移 1位 (<<1) 代表乘以 2，實現 1/2 縮放
     wire [9:0] mm_read_x = (h_cnt - 240) << 1;
     wire [9:0] mm_read_y = (v_cnt - 360) << 1;
     
@@ -284,10 +290,6 @@ module Top (
         addr_car_self  = is_self_box  ? calc_addr_self  : 17'd0;
         addr_car_enemy = is_enemy_box ? calc_addr_enemy : 17'd0;
     end
-
-    // 雙埠記憶體實例化
-    wire [3:0]car_self_color;
-    wire [3:0]car_enemy_color;
     blk_mem_gen_1 car_ram (
         .clka(clk_25MHz), .addra(addr_car_self), .douta(car_self_color),   // Port A: Self
         .clkb(clk_25MHz), .addrb(addr_car_enemy), .doutb(car_enemy_color)  // Port B: Enemy
