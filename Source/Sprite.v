@@ -98,3 +98,42 @@ module PauseResumeSprite (
         end
     end
 endmodule
+
+module WinningSprite (
+    input [9:0] h_cnt,
+    input [9:0] v_cnt,
+    input [1:0] winning_player,
+
+    output reg  is_pixel
+);
+    // The width and height of the winning banner.
+    localparam WIDTH  = 10'd280;
+    localparam HEIGHT = 10'd20;
+
+    // Coordinates settings.
+    wire [9:0] START_X = (winning_player == 2'b10 /* p2 */) ? 10'd340 
+                        : (winning_player == 2'b01 /* p1 */) ? 10'd20 : 10'd0;
+    localparam START_Y = 10'd170;
+
+    // ROM
+    reg [279:0] winning_text_rom [0:19]; // 20 rows, 280 columns for each row.
+
+    // Initialization: reading .mem
+    initial begin
+        $readmemb("YOU_WON.mem", winning_text_rom);
+    end
+
+    wire [9:0] rel_x = h_cnt - START_X;
+    wire [9:0] rel_y = v_cnt - START_Y;
+    wire in_box = (START_X <= h_cnt && h_cnt <= START_X + WIDTH)
+                    && (START_Y <= v_cnt && v_cnt <= START_Y + HEIGHT);
+    
+    always @(*) begin
+        if (in_box) begin
+            if (winning_player != 2'b00)
+                is_pixel <= winning_text_rom[rel_y][279 - rel_x];
+            else
+                is_pixel <= 0;
+        end
+    end
+endmodule
