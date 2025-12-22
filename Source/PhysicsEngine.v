@@ -274,22 +274,22 @@ module PhysicsEngine #(
             end else if (state == RACING) begin
                 case (flag)
                     2'd0: begin
-                        if (my_f_y>23 && my_f_y<54 && my_f_x>179 && my_f_x<184)begin
+                        if (my_f_y>45 && my_f_y<105 && my_f_x>355 && my_f_x<365)begin
                             flag<=2'd1;
                         end
                     end
                     2'd1: begin
-                        if(my_f_y>195 && my_f_y<227 && my_f_x<247 && my_f_x>242)begin
+                        if(my_f_y>390 && my_f_y<455 && my_f_x<500 && my_f_x>490)begin
                             flag<=2'd2;
                         end
                     end
                     2'd2: begin
-                        if(my_f_y>190 && my_f_y<220 && my_f_x<87 && my_f_x>82)begin
+                        if(my_f_y>380 && my_f_y<445 && my_f_x<178 && my_f_x>228)begin
                             flag<=2'd3;
                         end
                     end
                     2'd3: begin
-                        if(my_f_x>20 && my_f_x<50 && my_f_y<112)begin
+                        if(my_f_x>40 && my_f_x<100 && my_f_y<112)begin
                             finish<=1;
                         end
                     end
