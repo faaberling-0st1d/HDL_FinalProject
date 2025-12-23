@@ -127,7 +127,7 @@ module AudioEncoder (
                             if (p1_checkpoint_passed) begin
                                 local_cnt                    <= 0;
                                 p1_checkpoint_effect_playing <= 1;
-                            end else if (p1_checkpoint_effect_playing && local_cnt < 29'd300_000_000) begin
+                            end else if (p1_checkpoint_effect_playing && local_cnt < 29'd100_000_000) begin // 改為一秒
                                 local_cnt                    <= local_cnt + 1; // 我相信他不會那麼快經過兩個 checkpoint 啦 :D
                                 p1_checkpoint_effect_playing <= 1;
                             end else begin
@@ -139,7 +139,7 @@ module AudioEncoder (
                             if (p2_checkpoint_passed) begin
                                 local_cnt_2                  <= 0;
                                 p2_checkpoint_effect_playing <= 1;
-                            end else if (p2_checkpoint_effect_playing && local_cnt_2 < 29'd300_000_000) begin
+                            end else if (p2_checkpoint_effect_playing && local_cnt_2 < 29'd100_000_000) begin // 改為一秒
                                 local_cnt_2                  <= local_cnt_2 + 1;
                                 p2_checkpoint_effect_playing <= 1;
                             end else begin
@@ -184,24 +184,18 @@ module AudioEncoder (
                 volume_ctrl = 3'b100;
             end
 
-            if (p1_checkpoint_effect_playing && local_cnt < 29'd100_000_000) begin
+            if (p1_checkpoint_effect_playing && local_cnt < 29'd50_000_000) begin
                 target_div  = DIV_D4;
                 volume_ctrl = 3'b100;
-            end else if (p1_checkpoint_effect_playing && local_cnt < 29'd200_000_000) begin
-                target_div  = DIV_F4;
-                volume_ctrl = 3'b100;
-            end else if (p1_checkpoint_effect_playing && local_cnt < 29'd300_000_000) begin
+            end else if (p1_checkpoint_effect_playing && local_cnt < 29'd100_000_000) begin
                 target_div  = DIV_A4;
                 volume_ctrl = 3'b100;
             end
 
-            if (p2_checkpoint_effect_playing && local_cnt_2 < 29'd100_000_000) begin
+            if (p2_checkpoint_effect_playing && local_cnt_2 < 29'd50_000_000) begin
                 target_div  = DIV_C4;
                 volume_ctrl = 3'b100;
-            end else if (p2_checkpoint_effect_playing && local_cnt_2 < 29'd200_000_000) begin
-                target_div  = DIV_E4;
-                volume_ctrl = 3'b100;
-            end else if (p2_checkpoint_effect_playing && local_cnt_2 < 29'd300_000_000) begin
+            end else if (p2_checkpoint_effect_playing && local_cnt_2 < 29'd100_000_000) begin
                 target_div  = DIV_G4;
                 volume_ctrl = 3'b100;
             end
